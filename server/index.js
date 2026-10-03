@@ -75,16 +75,23 @@ app.use((err, req, res, next) => {
 
 const db = require('./db/database');
 
-// Start listening after database initialization
+// Start listening on 0.0.0.0 to satisfy Render container port routing
 async function startServer() {
-  await db.init();
-  server.listen(config.PORT, () => {
+  const HOST = '0.0.0.0';
+  server.listen(config.PORT, HOST, async () => {
     console.log(`===============================================`);
-    console.log(`🚀 Spendly Server running on port ${config.PORT}`);
-    console.log(`📍 Web UI: http://localhost:${config.PORT}`);
-    console.log(`📡 WebSocket: ws://localhost:${config.PORT}/ws`);
+    console.log(`🚀 Spendly Server running on ${HOST}:${config.PORT}`);
+    console.log(`📍 Web UI: http://${HOST}:${config.PORT}`);
+    console.log(`📡 WebSocket: ws://${HOST}:${config.PORT}/ws`);
     console.log(`💾 Database: ${db.isPostgres ? 'PostgreSQL' : `SQLite (WAL Mode) at ${config.DB_PATH}`}`);
     console.log(`===============================================`);
+
+    try {
+      await db.init();
+      console.log('✅ Database initialized and verified');
+    } catch (dbErr) {
+      console.error('[Spendly Database Init Warning]', dbErr);
+    }
   });
 }
 
