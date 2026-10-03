@@ -5,7 +5,7 @@ const db = require('../db/database');
  * @param {string} userId 
  * @param {{filterType: string, startDate?: number, endDate?: number}} filter 
  */
-function getAnalytics(userId, { filterType = 'all', startDate = null, endDate = null }) {
+async function getAnalytics(userId, { filterType = 'all', startDate = null, endDate = null }) {
   const now = new Date();
   let timeClause = '';
   const params = [userId];
@@ -25,7 +25,7 @@ function getAnalytics(userId, { filterType = 'all', startDate = null, endDate = 
   }
 
   // 1. Personal Spending within time window
-  const personalExpenses = db.prepare(`
+  const personalExpenses = await db.prepare(`
     SELECT pe.*, peh.name as head_name, peh.set_amount
     FROM personal_expenses pe
     JOIN personal_expense_heads peh ON peh.id = pe.head_id
@@ -60,7 +60,7 @@ function getAnalytics(userId, { filterType = 'all', startDate = null, endDate = 
   });
 
   // 2. Group Spending where user participated
-  const groupExpenses = db.prepare(`
+  const groupExpenses = await db.prepare(`
     SELECT ge.*, g.name as group_name
     FROM group_expenses ge
     JOIN groups g ON g.id = ge.group_id
@@ -71,48 +71,51 @@ function getAnalytics(userId, { filterType = 'all', startDate = null, endDate = 
 
   // 3. User Group Balances and Debts across active groups & bills
   // Fetch active settlements where user is payer or receiver
-  const pendingSettlementsAsPayer = db.prepare(`
+  const payerRow = await db.prepare(`
     SELECT COALESCE(SUM(amount), 0) as totalOwed
     FROM settlements
     WHERE payer_id = ? AND status != 'completed'
-  `).get(userId).totalOwed;
+  `).get(userId);
+  const pendingSettlementsAsPayer = payerRow ? payerRow.totalOwed : 0;
 
-  const pendingSettlementsAsReceiver = db.prepare(`
+  const receiverRow = await db.prepare(`
     SELECT COALESCE(SUM(amount), 0) as totalReceivable
     FROM settlements
     WHERE receiver_id = ? AND status != 'completed'
-  `).get(userId).totalReceivable;
+  `).get(userId);
+  const pendingSettlementsAsReceiver = receiverRow ? receiverRow.totalReceivable : 0;
 
   // Group summary by group
-  const userGroups = db.prepare(`
+  const userGroups = await db.prepare(`
     SELECT g.id, g.name
     FROM group_members gm
     JOIN groups g ON g.id = gm.group_id
     WHERE gm.user_id = ? AND gm.status = 'active' AND g.deleted_at IS NULL
   `).all(userId);
 
-  const groupAnalyticsList = userGroups.map(g => {
+  const groupAnalyticsList = await Promise.all(userGroups.map(async (g) => {
     // Total spent in group during time filter
-    const totalGroupSpentRow = db.prepare(`
+    const totalGroupSpentRow = await db.prepare(`
       SELECT COALESCE(SUM(amount), 0) as total
       FROM group_expenses
       WHERE group_id = ? ${timeClause.replace('pe.', '').replace('created_at', 'created_at')}
     `).get(g.id, ...params.slice(1));
 
     // User's contribution in group
-    const userContributionRow = db.prepare(`
+    const userContributionRow = await db.prepare(`
       SELECT COALESCE(SUM(amount), 0) as total
       FROM group_expenses
       WHERE group_id = ? AND user_id = ? ${timeClause.replace('pe.', '').replace('created_at', 'created_at')}
     `).get(g.id, userId, ...params.slice(1));
 
     // Active members count
-    const memberCount = db.prepare(`
+    const memberCountRow = await db.prepare(`
       SELECT COUNT(*) as count FROM group_members WHERE group_id = ? AND status = 'active'
-    `).get(g.id).count || 1;
+    `).get(g.id);
+    const memberCount = (memberCountRow && memberCountRow.count) ? memberCountRow.count : 1;
 
-    const groupTotal = totalGroupSpentRow.total;
-    const userSpent = userContributionRow.total;
+    const groupTotal = totalGroupSpentRow ? totalGroupSpentRow.total : 0;
+    const userSpent = userContributionRow ? userContributionRow.total : 0;
     const userShare = Math.floor(groupTotal / memberCount);
 
     return {
@@ -123,7 +126,7 @@ function getAnalytics(userId, { filterType = 'all', startDate = null, endDate = 
       userEqualShare: userShare,
       netDifference: userSpent - userShare
     };
-  });
+  }));
 
   // Overall totals
   const overallTotal = personalTotal + userGroupSpent;

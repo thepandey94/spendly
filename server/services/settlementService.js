@@ -106,7 +106,7 @@ function calculateSettlements(members) {
  * Mark settlement as paid by the payer (Status -> 'pending_confirmation')
  */
 async function markSettlementPaid(payerId, settlementId) {
-  const settlement = db.prepare(`
+  const settlement = await db.prepare(`
     SELECT s.*, g.name as group_name, u.username as payer_username, u.display_name as payer_name
     FROM settlements s
     JOIN groups g ON g.id = s.group_id
@@ -127,7 +127,7 @@ async function markSettlementPaid(payerId, settlementId) {
   }
 
   const now = Date.now();
-  db.prepare(`
+  await db.prepare(`
     UPDATE settlements 
     SET status = 'pending_confirmation', paid_at = ? 
     WHERE id = ?
@@ -164,7 +164,7 @@ async function markSettlementPaid(payerId, settlementId) {
  * Locks settlement permanently
  */
 async function confirmSettlementReceived(receiverId, settlementId) {
-  const settlement = db.prepare(`
+  const settlement = await db.prepare(`
     SELECT s.*, g.name as group_name, u.username as receiver_username, u.display_name as receiver_name
     FROM settlements s
     JOIN groups g ON g.id = s.group_id
@@ -185,7 +185,7 @@ async function confirmSettlementReceived(receiverId, settlementId) {
   }
 
   const now = Date.now();
-  db.prepare(`
+  await db.prepare(`
     UPDATE settlements 
     SET status = 'completed', confirmed_at = ? 
     WHERE id = ?
@@ -220,7 +220,7 @@ async function confirmSettlementReceived(receiverId, settlementId) {
  * Dispute / Reject settlement by receiver (Reverts status to 'pending')
  */
 async function disputeSettlement(receiverId, settlementId, reason = '') {
-  const settlement = db.prepare(`
+  const settlement = await db.prepare(`
     SELECT s.*, g.name as group_name, u.username as receiver_username, u.display_name as receiver_name
     FROM settlements s
     JOIN groups g ON g.id = s.group_id
@@ -236,7 +236,7 @@ async function disputeSettlement(receiverId, settlementId, reason = '') {
     throw new Error('Completed settlements cannot be disputed.');
   }
 
-  db.prepare(`
+  await db.prepare(`
     UPDATE settlements 
     SET status = 'pending', paid_at = NULL 
     WHERE id = ?

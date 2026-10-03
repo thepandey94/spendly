@@ -7,6 +7,7 @@ const settlementService = require('../services/settlementService');
 
 async function seed() {
   console.log('🌱 Seeding Spendly development data...');
+  await db.init();
 
   const passwordHash = bcrypt.hashSync('Password123!', 10);
   const now = Date.now();
@@ -20,46 +21,47 @@ async function seed() {
   ];
 
   for (const u of users) {
-    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(u.email);
+    const existing = await db.prepare('SELECT id FROM users WHERE email = ?').get(u.email);
     if (!existing) {
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO users (id, email, username, password_hash, display_name, bio, avatar_url, last_username_change, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, '', NULL, ?, ?)
       `).run(u.id, u.email, u.username, passwordHash, u.displayName, u.bio, now, now);
 
       // Create personal cycle #1
       const cycleId = crypto.randomUUID();
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO personal_cycles (id, user_id, cycle_number, status, created_at)
         VALUES (?, ?, 1, 'active', ?)
       `).run(cycleId, u.id, now);
     }
   }
 
-  const rahul = db.prepare('SELECT * FROM users WHERE email = ?').get('rahul@spendly.app');
-  const priya = db.prepare('SELECT * FROM users WHERE email = ?').get('priya@spendly.app');
-  const amit = db.prepare('SELECT * FROM users WHERE email = ?').get('amit@spendly.app');
-  const deepak = db.prepare('SELECT * FROM users WHERE email = ?').get('deepak@spendly.app');
+  const rahul = await db.prepare('SELECT * FROM users WHERE email = ?').get('rahul@spendly.app');
+  const priya = await db.prepare('SELECT * FROM users WHERE email = ?').get('priya@spendly.app');
+  const amit = await db.prepare('SELECT * FROM users WHERE email = ?').get('amit@spendly.app');
+  const deepak = await db.prepare('SELECT * FROM users WHERE email = ?').get('deepak@spendly.app');
 
   // Seed Personal Expense Heads for Rahul
-  const activeCycle = personalService.getActiveCycle(rahul.id);
+  const activeCycle = await personalService.getActiveCycle(rahul.id);
   if (activeCycle) {
-    const headCount = db.prepare('SELECT COUNT(*) as count FROM personal_expense_heads WHERE cycle_id = ?').get(activeCycle.id).count;
+    const countRow = await db.prepare('SELECT COUNT(*) as count FROM personal_expense_heads WHERE cycle_id = ?').get(activeCycle.id);
+    const headCount = countRow ? Number(countRow.count) : 0;
     if (headCount === 0) {
-      const hRent = personalService.createExpenseHead(rahul.id, { name: 'Rent', setAmount: 5000 });
-      const hKirana = personalService.createExpenseHead(rahul.id, { name: 'Kirana / Groceries', setAmount: 3000 });
-      const hTransport = personalService.createExpenseHead(rahul.id, { name: 'Transport & Fuel', setAmount: 1500 });
-      const hBills = personalService.createExpenseHead(rahul.id, { name: 'Utilities & Bills', setAmount: 1000 });
+      const hRent = await personalService.createExpenseHead(rahul.id, { name: 'Rent', setAmount: 5000 });
+      const hKirana = await personalService.createExpenseHead(rahul.id, { name: 'Kirana / Groceries', setAmount: 3000 });
+      const hTransport = await personalService.createExpenseHead(rahul.id, { name: 'Transport & Fuel', setAmount: 1500 });
+      const hBills = await personalService.createExpenseHead(rahul.id, { name: 'Utilities & Bills', setAmount: 1000 });
 
-      personalService.addPersonalExpense(rahul.id, { headId: hRent.id, description: 'Flat rent advance', amount: 2000 });
-      personalService.addPersonalExpense(rahul.id, { headId: hKirana.id, description: 'Supermarket weekly grocery', amount: 1450.50 });
-      personalService.addPersonalExpense(rahul.id, { headId: hBills.id, description: 'Broadband WiFi recharge', amount: 999.00 });
-      personalService.addPersonalExpense(rahul.id, { headId: hTransport.id, description: 'Metro Smart Card topup', amount: 500 });
+      await personalService.addPersonalExpense(rahul.id, { headId: hRent.id, description: 'Flat rent advance', amount: 2000 });
+      await personalService.addPersonalExpense(rahul.id, { headId: hKirana.id, description: 'Supermarket weekly grocery', amount: 1450.50 });
+      await personalService.addPersonalExpense(rahul.id, { headId: hBills.id, description: 'Broadband WiFi recharge', amount: 999.00 });
+      await personalService.addPersonalExpense(rahul.id, { headId: hTransport.id, description: 'Metro Smart Card topup', amount: 500 });
     }
   }
 
   // Seed Group: "Flat 402 Roommates"
-  const existingGroup = db.prepare('SELECT id FROM groups WHERE name = ? AND deleted_at IS NULL').get('Flat 402 Roommates');
+  const existingGroup = await db.prepare('SELECT id FROM groups WHERE name = ? AND deleted_at IS NULL').get('Flat 402 Roommates');
   if (!existingGroup) {
     const groupRes = await groupService.createGroup(rahul.id, {
       name: 'Flat 402 Roommates',
@@ -69,19 +71,19 @@ async function seed() {
     const gId = groupRes.group.id;
 
     // Auto-accept invites for seed accounts
-    const invites = db.prepare('SELECT id, invitee_id FROM group_invitations WHERE group_id = ?').all(gId);
+    const invites = await db.prepare('SELECT id, invitee_id FROM group_invitations WHERE group_id = ?').all(gId);
     for (const inv of invites) {
       await groupService.respondToInvitation(inv.invitee_id, inv.id, true);
     }
 
     // Assign temporary name to Priya
-    groupService.setMemberTemporaryName(rahul.id, gId, priya.id, 'Roommate 1');
+    await groupService.setMemberTemporaryName(rahul.id, gId, priya.id, 'Roommate 1');
 
     // Add group spending
-    groupService.addGroupExpense(rahul.id, gId, { description: 'Grocery shopping from D-Mart', amount: 1200.00 });
-    groupService.addGroupExpense(priya.id, gId, { description: 'Kitchen utensils & spices', amount: 650.50 });
-    groupService.addGroupExpense(amit.id, gId, { description: 'High-speed Fiber WiFi', amount: 999.00 });
-    groupService.addGroupExpense(deepak.id, gId, { description: 'Water can delivery & cleaning', amount: 350.00 });
+    await groupService.addGroupExpense(rahul.id, gId, { description: 'Grocery shopping from D-Mart', amount: 1200.00 });
+    await groupService.addGroupExpense(priya.id, gId, { description: 'Kitchen utensils & spices', amount: 650.50 });
+    await groupService.addGroupExpense(amit.id, gId, { description: 'High-speed Fiber WiFi', amount: 999.00 });
+    await groupService.addGroupExpense(deepak.id, gId, { description: 'Water can delivery & cleaning', amount: 350.00 });
   }
 
   console.log('✅ Seed completed successfully!');

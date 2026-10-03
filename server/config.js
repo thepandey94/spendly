@@ -7,6 +7,7 @@ module.exports = {
   JWT_EXPIRES_IN: '30d',
   UPLOAD_DIR: process.env.UPLOAD_DIR || path.join(__dirname, '../uploads/avatars'),
   DB_PATH: process.env.DB_PATH || path.join(__dirname, 'spendly.db'),
+  DATABASE_URL: process.env.DATABASE_URL || '',
   
   // Brevo SMTP Email configuration (Transactional OTP Delivery)
   SMTP_HOST: process.env.SMTP_HOST || 'smtp-relay.brevo.com',

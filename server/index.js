@@ -73,14 +73,24 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start listening
-server.listen(config.PORT, () => {
-  console.log(`===============================================`);
-  console.log(`🚀 Spendly Server running on port ${config.PORT}`);
-  console.log(`📍 Web UI: http://localhost:${config.PORT}`);
-  console.log(`📡 WebSocket: ws://localhost:${config.PORT}/ws`);
-  console.log(`💾 Database: SQLite (WAL Mode) at ${config.DB_PATH}`);
-  console.log(`===============================================`);
+const db = require('./db/database');
+
+// Start listening after database initialization
+async function startServer() {
+  await db.init();
+  server.listen(config.PORT, () => {
+    console.log(`===============================================`);
+    console.log(`🚀 Spendly Server running on port ${config.PORT}`);
+    console.log(`📍 Web UI: http://localhost:${config.PORT}`);
+    console.log(`📡 WebSocket: ws://localhost:${config.PORT}/ws`);
+    console.log(`💾 Database: ${db.isPostgres ? 'PostgreSQL' : `SQLite (WAL Mode) at ${config.DB_PATH}`}`);
+    console.log(`===============================================`);
+  });
+}
+
+startServer().catch((err) => {
+  console.error('[Spendly Fatal Startup Error]', err);
+  process.exit(1);
 });
 
 module.exports = { app, server };

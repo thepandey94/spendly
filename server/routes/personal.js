@@ -7,9 +7,9 @@ const { authenticate } = require('../middleware/auth');
 router.use(authenticate);
 
 // 1. Get Personal Dashboard (active cycle, heads, entries, stats)
-router.get('/dashboard', (req, res) => {
+router.get('/dashboard', async (req, res) => {
   try {
-    const data = personalService.getPersonalDashboard(req.user.id);
+    const data = await personalService.getPersonalDashboard(req.user.id);
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -17,10 +17,10 @@ router.get('/dashboard', (req, res) => {
 });
 
 // 2. Create Expense Head
-router.post('/heads', (req, res) => {
+router.post('/heads', async (req, res) => {
   try {
     const { name, setAmount } = req.body;
-    const head = personalService.createExpenseHead(req.user.id, { name, setAmount });
+    const head = await personalService.createExpenseHead(req.user.id, { name, setAmount });
     res.status(201).json({ head });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -28,10 +28,10 @@ router.post('/heads', (req, res) => {
 });
 
 // 3. Update Expense Head
-router.put('/heads/:id', (req, res) => {
+router.put('/heads/:id', async (req, res) => {
   try {
     const { name, setAmount } = req.body;
-    const updated = personalService.updateExpenseHead(req.user.id, req.params.id, { name, setAmount });
+    const updated = await personalService.updateExpenseHead(req.user.id, req.params.id, { name, setAmount });
     res.json({ head: updated });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -39,9 +39,9 @@ router.put('/heads/:id', (req, res) => {
 });
 
 // 4. Delete Expense Head
-router.delete('/heads/:id', (req, res) => {
+router.delete('/heads/:id', async (req, res) => {
   try {
-    const result = personalService.deleteExpenseHead(req.user.id, req.params.id);
+    const result = await personalService.deleteExpenseHead(req.user.id, req.params.id);
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -49,10 +49,10 @@ router.delete('/heads/:id', (req, res) => {
 });
 
 // 5. Add Spending Entry (with idempotency support for offline sync)
-router.post('/expenses', (req, res) => {
+router.post('/expenses', async (req, res) => {
   try {
     const { headId, description, amount, idempotencyKey } = req.body;
-    const expense = personalService.addPersonalExpense(req.user.id, {
+    const expense = await personalService.addPersonalExpense(req.user.id, {
       headId,
       description,
       amount,
@@ -65,10 +65,10 @@ router.post('/expenses', (req, res) => {
 });
 
 // 6. Update Spending Entry
-router.put('/expenses/:id', (req, res) => {
+router.put('/expenses/:id', async (req, res) => {
   try {
     const { description, amount } = req.body;
-    const updated = personalService.updatePersonalExpense(req.user.id, req.params.id, { description, amount });
+    const updated = await personalService.updatePersonalExpense(req.user.id, req.params.id, { description, amount });
     res.json({ expense: updated });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -76,9 +76,9 @@ router.put('/expenses/:id', (req, res) => {
 });
 
 // 7. Delete Spending Entry
-router.delete('/expenses/:id', (req, res) => {
+router.delete('/expenses/:id', async (req, res) => {
   try {
-    const result = personalService.deletePersonalExpense(req.user.id, req.params.id);
+    const result = await personalService.deletePersonalExpense(req.user.id, req.params.id);
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -86,9 +86,9 @@ router.delete('/expenses/:id', (req, res) => {
 });
 
 // 8. Generate Personal Bill (Atomic billing, immutable snapshot)
-router.post('/billing', (req, res) => {
+router.post('/billing', async (req, res) => {
   try {
-    const result = personalService.generatePersonalBill(req.user.id);
+    const result = await personalService.generatePersonalBill(req.user.id);
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -96,9 +96,9 @@ router.post('/billing', (req, res) => {
 });
 
 // 9. Start New Cycle
-router.post('/start-new-cycle', (req, res) => {
+router.post('/start-new-cycle', async (req, res) => {
   try {
-    const result = personalService.startNewPersonalCycle(req.user.id);
+    const result = await personalService.startNewPersonalCycle(req.user.id);
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message });

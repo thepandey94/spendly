@@ -165,12 +165,12 @@ function generateOtp() {
 /**
  * Check rate limit and resend cooldown for an email
  */
-function checkRateLimitAndCooldown(email, purpose) {
+async function checkRateLimitAndCooldown(email, purpose) {
   const now = Date.now();
   const normalizedEmail = email.trim().toLowerCase();
 
   // 1. Check Resend Cooldown against database record
-  const existing = db.prepare(`
+  const existing = await db.prepare(`
     SELECT created_at FROM email_otps 
     WHERE email = ? AND purpose = ?
   `).get(normalizedEmail, purpose);
@@ -203,7 +203,7 @@ async function sendOtp(email, purpose) {
   const normalizedEmail = email.trim().toLowerCase();
 
   // Validate rate limit & cooldown
-  checkRateLimitAndCooldown(normalizedEmail, purpose);
+  await checkRateLimitAndCooldown(normalizedEmail, purpose);
 
   const otpCode = generateOtp();
   const hashedCode = hashOtp(normalizedEmail, otpCode);
@@ -211,14 +211,14 @@ async function sendOtp(email, purpose) {
   const expiresAt = now + config.OTP_EXPIRATION_MS;
 
   // Clean up any existing active OTPs for this email and purpose
-  db.prepare(`
+  await db.prepare(`
     DELETE FROM email_otps 
     WHERE email = ? AND purpose = ?
   `).run(normalizedEmail, purpose);
 
   // Insert newly hashed OTP into database
   const id = crypto.randomUUID();
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO email_otps (id, email, otp_code, purpose, attempts, expires_at, created_at)
     VALUES (?, ?, ?, ?, 0, ?, ?)
   `).run(id, normalizedEmail, hashedCode, purpose, expiresAt, now);
@@ -310,7 +310,7 @@ async function sendOtp(email, purpose) {
 /**
  * Verify submitted OTP against hashed record in database
  */
-function verifyOtp(email, otpCode, purpose) {
+async function verifyOtp(email, otpCode, purpose) {
   const normalizedEmail = email.trim().toLowerCase();
   const trimmedOtp = (otpCode || '').trim();
   const now = Date.now();
@@ -319,7 +319,7 @@ function verifyOtp(email, otpCode, purpose) {
     return { success: false, error: 'Invalid verification code. Please enter 6 digits.' };
   }
 
-  const record = db.prepare(`
+  const record = await db.prepare(`
     SELECT * FROM email_otps 
     WHERE email = ? AND purpose = ?
   `).get(normalizedEmail, purpose);
@@ -329,12 +329,12 @@ function verifyOtp(email, otpCode, purpose) {
   }
 
   if (now > record.expires_at) {
-    db.prepare('DELETE FROM email_otps WHERE id = ?').run(record.id);
+    await db.prepare('DELETE FROM email_otps WHERE id = ?').run(record.id);
     return { success: false, error: 'This verification code has expired. Please request a new code.' };
   }
 
   if (record.attempts >= config.MAX_OTP_ATTEMPTS) {
-    db.prepare('DELETE FROM email_otps WHERE id = ?').run(record.id);
+    await db.prepare('DELETE FROM email_otps WHERE id = ?').run(record.id);
     return { success: false, error: 'Too many verification attempts. Please request a new code.' };
   }
 
@@ -348,7 +348,7 @@ function verifyOtp(email, otpCode, purpose) {
                   crypto.timingSafeEqual(expectedBuffer, submittedBuffer);
 
   if (!isMatch) {
-    db.prepare(`
+    await db.prepare(`
       UPDATE email_otps 
       SET attempts = attempts + 1 
       WHERE id = ?
@@ -356,7 +356,7 @@ function verifyOtp(email, otpCode, purpose) {
 
     const remaining = config.MAX_OTP_ATTEMPTS - (record.attempts + 1);
     if (remaining <= 0) {
-      db.prepare('DELETE FROM email_otps WHERE id = ?').run(record.id);
+      await db.prepare('DELETE FROM email_otps WHERE id = ?').run(record.id);
       return { 
         success: false, 
         error: 'Too many incorrect attempts. This code has been invalidated. Please request a new code.' 
@@ -369,7 +369,7 @@ function verifyOtp(email, otpCode, purpose) {
   }
 
   // Verification successful! Clean up OTP record immediately (Single-use enforcement)
-  db.prepare('DELETE FROM email_otps WHERE id = ?').run(record.id);
+  await db.prepare('DELETE FROM email_otps WHERE id = ?').run(record.id);
 
   return { success: true };
 }

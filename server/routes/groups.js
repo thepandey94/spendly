@@ -7,9 +7,9 @@ const { authenticate } = require('../middleware/auth');
 router.use(authenticate);
 
 // 1. List user's groups
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const groups = groupService.getUserGroups(req.user.id);
+    const groups = await groupService.getUserGroups(req.user.id);
     res.json({ groups });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -28,9 +28,9 @@ router.post('/', async (req, res) => {
 });
 
 // 3. Get group details
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const details = groupService.getGroupDetails(req.params.id, req.user.id);
+    const details = await groupService.getGroupDetails(req.params.id, req.user.id);
     res.json(details);
   } catch (err) {
     res.status(404).json({ error: err.message });
@@ -60,10 +60,10 @@ router.post('/invitations/:invitationId/respond', async (req, res) => {
 });
 
 // 6. Set temporary name for member (Admin only)
-router.put('/:id/members/:userId/temporary-name', (req, res) => {
+router.put('/:id/members/:userId/temporary-name', async (req, res) => {
   try {
     const { temporaryName } = req.body;
-    const result = groupService.setMemberTemporaryName(req.user.id, req.params.id, req.params.userId, temporaryName);
+    const result = await groupService.setMemberTemporaryName(req.user.id, req.params.id, req.params.userId, temporaryName);
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -111,10 +111,10 @@ router.delete('/:id', async (req, res) => {
 });
 
 // 11. Add group expense
-router.post('/:id/expenses', (req, res) => {
+router.post('/:id/expenses', async (req, res) => {
   try {
     const { description, amount, idempotencyKey } = req.body;
-    const expense = groupService.addGroupExpense(req.user.id, req.params.id, {
+    const expense = await groupService.addGroupExpense(req.user.id, req.params.id, {
       description,
       amount,
       idempotencyKey
@@ -126,10 +126,10 @@ router.post('/:id/expenses', (req, res) => {
 });
 
 // 12. Edit group expense
-router.put('/:id/expenses/:expId', (req, res) => {
+router.put('/:id/expenses/:expId', async (req, res) => {
   try {
     const { description, amount } = req.body;
-    const updated = groupService.updateGroupExpense(req.user.id, req.params.id, req.params.expId, {
+    const updated = await groupService.updateGroupExpense(req.user.id, req.params.id, req.params.expId, {
       description,
       amount
     });
@@ -140,9 +140,9 @@ router.put('/:id/expenses/:expId', (req, res) => {
 });
 
 // 13. Delete group expense
-router.delete('/:id/expenses/:expId', (req, res) => {
+router.delete('/:id/expenses/:expId', async (req, res) => {
   try {
-    const result = groupService.deleteGroupExpense(req.user.id, req.params.id, req.params.expId);
+    const result = await groupService.deleteGroupExpense(req.user.id, req.params.id, req.params.expId);
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message });

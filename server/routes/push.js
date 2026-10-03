@@ -10,13 +10,13 @@ router.get('/key', (req, res) => {
 });
 
 // Subscribe user device to push notifications
-router.post('/subscribe', authenticate, (req, res) => {
+router.post('/subscribe', authenticate, async (req, res) => {
   try {
     const { subscription } = req.body;
     if (!subscription) {
       return res.status(400).json({ error: 'Subscription data required.' });
     }
-    const result = notificationService.savePushSubscription(req.user.id, subscription);
+    const result = await notificationService.savePushSubscription(req.user.id, subscription);
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message });

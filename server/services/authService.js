@@ -26,24 +26,24 @@ function isValidEmail(email) {
 /**
  * Check if a username is available globally (case-insensitive)
  */
-function isUsernameAvailable(username) {
+async function isUsernameAvailable(username) {
   if (!username || typeof username !== 'string') return false;
   const cleanUsername = username.trim().toLowerCase();
   // Valid username regex: 3-30 chars, alphanumeric + underscores
   if (!/^[a-z0-9_]{3,30}$/.test(cleanUsername)) {
     return false;
   }
-  const existing = db.prepare('SELECT id FROM users WHERE username = ? COLLATE NOCASE').get(cleanUsername);
+  const existing = await db.prepare('SELECT id FROM users WHERE username = ? COLLATE NOCASE').get(cleanUsername);
   return !existing;
 }
 
 /**
  * Check if an email is already registered
  */
-function isEmailRegistered(email) {
+async function isEmailRegistered(email) {
   if (!email || typeof email !== 'string') return true;
   const cleanEmail = email.trim().toLowerCase();
-  const existing = db.prepare('SELECT id FROM users WHERE email = ? COLLATE NOCASE').get(cleanEmail);
+  const existing = await db.prepare('SELECT id FROM users WHERE email = ? COLLATE NOCASE').get(cleanEmail);
   return !!existing;
 }
 
@@ -56,7 +56,7 @@ async function requestRegistrationOtp(email) {
   }
   const cleanEmail = email.trim().toLowerCase();
 
-  if (isEmailRegistered(cleanEmail)) {
+  if (await isEmailRegistered(cleanEmail)) {
     throw new Error('An account with this email address already exists.');
   }
 
@@ -72,7 +72,7 @@ async function verifyRegistrationOtp(email, otp) {
   }
   const cleanEmail = email.trim().toLowerCase();
 
-  const otpResult = emailService.verifyOtp(cleanEmail, otp, 'registration');
+  const otpResult = await emailService.verifyOtp(cleanEmail, otp, 'registration');
   if (!otpResult.success) {
     throw new Error(otpResult.error);
   }
@@ -112,7 +112,7 @@ async function registerUser({ email, verificationTicket, otp, username, password
       throw new Error('Verification has expired or is invalid. Please request a new code.');
     }
   } else if (otp) {
-    const otpResult = emailService.verifyOtp(cleanEmail, otp, 'registration');
+    const otpResult = await emailService.verifyOtp(cleanEmail, otp, 'registration');
     if (!otpResult.success) {
       throw new Error(otpResult.error);
     }
@@ -120,11 +120,11 @@ async function registerUser({ email, verificationTicket, otp, username, password
     throw new Error('Email verification is required before creating an account.');
   }
 
-  if (isEmailRegistered(cleanEmail)) {
+  if (await isEmailRegistered(cleanEmail)) {
     throw new Error('An account with this email address already exists.');
   }
 
-  if (!isUsernameAvailable(cleanUsername)) {
+  if (!(await isUsernameAvailable(cleanUsername))) {
     throw new Error('Username is invalid or already taken. Must be 3-30 characters (letters, numbers, underscores).');
   }
 
@@ -140,21 +140,19 @@ async function registerUser({ email, verificationTicket, otp, username, password
   const now = Date.now();
 
   // Use transaction to create user and initial personal cycle
-  const createUserTx = db.transaction(() => {
-    db.prepare(`
+  await db.transaction(async () => {
+    await db.prepare(`
       INSERT INTO users (id, email, username, password_hash, display_name, bio, avatar_url, last_username_change, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, '', '', NULL, ?, ?)
     `).run(userId, cleanEmail, cleanUsername, passwordHash, cleanUsername, now, now);
 
     // Create initial active personal cycle (Cycle #1)
     const cycleId = crypto.randomUUID();
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO personal_cycles (id, user_id, cycle_number, status, created_at)
       VALUES (?, ?, 1, 'active', ?)
     `).run(cycleId, userId, now);
   });
-
-  createUserTx();
 
   // Generate session and token
   const token = jwt.sign({ userId, username: cleanUsername, email: cleanEmail }, config.JWT_SECRET, {
@@ -162,12 +160,12 @@ async function registerUser({ email, verificationTicket, otp, username, password
   });
 
   const sessionId = crypto.randomUUID();
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO user_sessions (id, user_id, device_info, token, created_at, last_active_at)
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(sessionId, userId, deviceInfo, token, now, now);
 
-  const user = db.prepare('SELECT id, email, username, display_name, bio, avatar_url, last_username_change, created_at FROM users WHERE id = ?').get(userId);
+  const user = await db.prepare('SELECT id, email, username, display_name, bio, avatar_url, last_username_change, created_at FROM users WHERE id = ?').get(userId);
 
   return {
     user,
@@ -186,7 +184,7 @@ async function login({ identifier, password, deviceInfo = 'Web Device' }) {
 
   const cleanIdentifier = identifier.trim().toLowerCase();
 
-  const user = db.prepare(`
+  const user = await db.prepare(`
     SELECT * FROM users 
     WHERE email = ? COLLATE NOCASE OR username = ? COLLATE NOCASE
   `).get(cleanIdentifier, cleanIdentifier);
@@ -207,7 +205,7 @@ async function login({ identifier, password, deviceInfo = 'Web Device' }) {
   const sessionId = crypto.randomUUID();
   const now = Date.now();
 
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO user_sessions (id, user_id, device_info, token, created_at, last_active_at)
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(sessionId, user.id, deviceInfo, token, now, now);
@@ -224,9 +222,9 @@ async function login({ identifier, password, deviceInfo = 'Web Device' }) {
 /**
  * Logout specific session (does not affect other devices)
  */
-function logout(sessionId) {
+async function logout(sessionId) {
   if (sessionId) {
-    db.prepare('DELETE FROM user_sessions WHERE id = ?').run(sessionId);
+    await db.prepare('DELETE FROM user_sessions WHERE id = ?').run(sessionId);
   }
   return { success: true };
 }
@@ -239,7 +237,7 @@ async function requestForgotPasswordOtp(email) {
     throw new Error('Please enter a valid email address.');
   }
   const cleanEmail = email.trim().toLowerCase();
-  const user = db.prepare('SELECT id FROM users WHERE email = ? COLLATE NOCASE').get(cleanEmail);
+  const user = await db.prepare('SELECT id FROM users WHERE email = ? COLLATE NOCASE').get(cleanEmail);
   if (!user) {
     throw new Error('No Spendly account found with this email address.');
   }
@@ -255,7 +253,7 @@ async function verifyForgotPasswordOtp(email, otp) {
     throw new Error('Please enter a valid email address.');
   }
   const cleanEmail = email.trim().toLowerCase();
-  const otpResult = emailService.verifyOtp(cleanEmail, otp, 'reset_password');
+  const otpResult = await emailService.verifyOtp(cleanEmail, otp, 'reset_password');
   if (!otpResult.success) {
     throw new Error(otpResult.error);
   }
@@ -295,7 +293,7 @@ async function resetPasswordWithOtp({ email, resetTicket, otp, newPassword }) {
       throw new Error('Reset code has expired. Please request a new code.');
     }
   } else if (otp) {
-    const otpResult = emailService.verifyOtp(cleanEmail, otp, 'reset_password');
+    const otpResult = await emailService.verifyOtp(cleanEmail, otp, 'reset_password');
     if (!otpResult.success) {
       throw new Error(otpResult.error);
     }
@@ -303,7 +301,7 @@ async function resetPasswordWithOtp({ email, resetTicket, otp, newPassword }) {
     throw new Error('Verification is required to reset your password.');
   }
 
-  const user = db.prepare('SELECT id FROM users WHERE email = ? COLLATE NOCASE').get(cleanEmail);
+  const user = await db.prepare('SELECT id FROM users WHERE email = ? COLLATE NOCASE').get(cleanEmail);
   if (!user) {
     throw new Error('No Spendly account found with this email address.');
   }
@@ -312,14 +310,14 @@ async function resetPasswordWithOtp({ email, resetTicket, otp, newPassword }) {
   const passwordHash = bcrypt.hashSync(newPassword, salt);
   const now = Date.now();
 
-  db.prepare(`
+  await db.prepare(`
     UPDATE users 
     SET password_hash = ?, updated_at = ? 
     WHERE id = ?
   `).run(passwordHash, now, user.id);
 
   // Revoke all existing sessions on password reset for security
-  db.prepare('DELETE FROM user_sessions WHERE user_id = ?').run(user.id);
+  await db.prepare('DELETE FROM user_sessions WHERE user_id = ?').run(user.id);
 
   return { success: true, message: 'Password has been updated successfully. Please log in.' };
 }
@@ -332,7 +330,7 @@ async function changePassword(userId, currentPassword, newPassword) {
     throw new Error('New password must be at least 6 characters long.');
   }
 
-  const user = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(userId);
+  const user = await db.prepare('SELECT password_hash FROM users WHERE id = ?').get(userId);
   if (!user) {
     throw new Error('User not found.');
   }
@@ -346,7 +344,7 @@ async function changePassword(userId, currentPassword, newPassword) {
   const passwordHash = bcrypt.hashSync(newPassword, salt);
   const now = Date.now();
 
-  db.prepare(`
+  await db.prepare(`
     UPDATE users 
     SET password_hash = ?, updated_at = ? 
     WHERE id = ?
@@ -360,11 +358,11 @@ async function changePassword(userId, currentPassword, newPassword) {
  */
 async function changeUsername(userId, newUsername) {
   const cleanUsername = newUsername.trim().toLowerCase();
-  if (!isUsernameAvailable(cleanUsername)) {
+  if (!(await isUsernameAvailable(cleanUsername))) {
     throw new Error('Username is invalid or already in use. Must be 3-30 alphanumeric characters.');
   }
 
-  const user = db.prepare('SELECT last_username_change FROM users WHERE id = ?').get(userId);
+  const user = await db.prepare('SELECT last_username_change FROM users WHERE id = ?').get(userId);
   if (!user) throw new Error('User not found.');
 
   const now = Date.now();
@@ -376,7 +374,7 @@ async function changeUsername(userId, newUsername) {
     }
   }
 
-  db.prepare(`
+  await db.prepare(`
     UPDATE users 
     SET username = ?, last_username_change = ?, updated_at = ? 
     WHERE id = ?
@@ -394,7 +392,7 @@ async function requestEmailChangeOtp(userId, newEmail) {
   }
   const cleanEmail = newEmail.trim().toLowerCase();
 
-  if (isEmailRegistered(cleanEmail)) {
+  if (await isEmailRegistered(cleanEmail)) {
     throw new Error('This email address is already in use by another Spendly account.');
   }
 
@@ -409,13 +407,13 @@ async function verifyEmailChange(userId, newEmail, otp) {
     throw new Error('Please enter a valid email address.');
   }
   const cleanEmail = newEmail.trim().toLowerCase();
-  const otpResult = emailService.verifyOtp(cleanEmail, otp, 'change_email');
+  const otpResult = await emailService.verifyOtp(cleanEmail, otp, 'change_email');
   if (!otpResult.success) {
     throw new Error(otpResult.error);
   }
 
   const now = Date.now();
-  db.prepare(`
+  await db.prepare(`
     UPDATE users 
     SET email = ?, updated_at = ? 
     WHERE id = ?
@@ -427,8 +425,8 @@ async function verifyEmailChange(userId, newEmail, otp) {
 /**
  * Update Profile (display_name, bio, avatar_url)
  */
-function updateProfile(userId, { displayName, bio, avatarUrl }) {
-  const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+async function updateProfile(userId, { displayName, bio, avatarUrl }) {
+  const user = await db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
   if (!user) throw new Error('User not found.');
 
   const updates = [];
@@ -453,29 +451,29 @@ function updateProfile(userId, { displayName, bio, avatarUrl }) {
   params.push(Date.now());
   params.push(userId);
 
-  db.prepare(`
+  await db.prepare(`
     UPDATE users 
     SET ${updates.join(', ')} 
     WHERE id = ?
   `).run(...params);
 
-  return db.prepare('SELECT id, email, username, display_name, bio, avatar_url, last_username_change, created_at FROM users WHERE id = ?').get(userId);
+  return await db.prepare('SELECT id, email, username, display_name, bio, avatar_url, last_username_change, created_at FROM users WHERE id = ?').get(userId);
 }
 
 /**
  * Get User by ID
  */
-function getUserById(userId) {
-  return db.prepare('SELECT id, email, username, display_name, bio, avatar_url, last_username_change, created_at FROM users WHERE id = ?').get(userId);
+async function getUserById(userId) {
+  return await db.prepare('SELECT id, email, username, display_name, bio, avatar_url, last_username_change, created_at FROM users WHERE id = ?').get(userId);
 }
 
 /**
  * Search users by username for group invites
  */
-function searchUsersByUsername(query, currentUserId) {
+async function searchUsersByUsername(query, currentUserId) {
   if (!query || query.trim().length < 2) return [];
   const pattern = `%${query.trim().toLowerCase()}%`;
-  return db.prepare(`
+  return await db.prepare(`
     SELECT id, username, display_name, avatar_url 
     FROM users 
     WHERE username LIKE ? AND id != ? 
@@ -487,19 +485,20 @@ function searchUsersByUsername(query, currentUserId) {
  * Permanent Account Deletion (Section 58)
  * Checks active billing obligations, handles admin succession, preserves historical bills
  */
-function deleteAccount(userId) {
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+async function deleteAccount(userId) {
+  const user = await db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
   if (!user) throw new Error('User not found.');
 
   // 1. Check if user has active personal cycle with unbilled expenses
-  const activePersonalCycle = db.prepare(`
+  const activePersonalCycle = await db.prepare(`
     SELECT id FROM personal_cycles WHERE user_id = ? AND status = 'active'
   `).get(userId);
 
   if (activePersonalCycle) {
-    const expenseCount = db.prepare(`
+    const expenseRow = await db.prepare(`
       SELECT COUNT(*) as count FROM personal_expenses WHERE cycle_id = ?
-    `).get(activePersonalCycle.id).count;
+    `).get(activePersonalCycle.id);
+    const expenseCount = expenseRow ? expenseRow.count : 0;
 
     if (expenseCount > 0) {
       throw new Error('Please complete billing your active personal expenses cycle before deleting your account.');
@@ -507,7 +506,7 @@ function deleteAccount(userId) {
   }
 
   // 2. Check if user has active group memberships with unbilled expenses or pending settlements
-  const activeMemberships = db.prepare(`
+  const activeMemberships = await db.prepare(`
     SELECT gm.group_id, g.name as group_name, gm.role 
     FROM group_members gm
     JOIN groups g ON g.id = gm.group_id
@@ -516,14 +515,15 @@ function deleteAccount(userId) {
 
   for (const m of activeMemberships) {
     // Check if group has active unbilled cycle with expenses
-    const groupActiveCycle = db.prepare(`
+    const groupActiveCycle = await db.prepare(`
       SELECT id FROM group_cycles WHERE group_id = ? AND status = 'active'
     `).get(m.group_id);
 
     if (groupActiveCycle) {
-      const groupExpCount = db.prepare(`
+      const groupExpRow = await db.prepare(`
         SELECT COUNT(*) as count FROM group_expenses WHERE cycle_id = ?
-      `).get(groupActiveCycle.id).count;
+      `).get(groupActiveCycle.id);
+      const groupExpCount = groupExpRow ? groupExpRow.count : 0;
 
       if (groupExpCount > 0) {
         throw new Error(`Please complete billing in group "${m.group_name}" before deleting your account.`);
@@ -531,7 +531,7 @@ function deleteAccount(userId) {
     }
 
     // Check if user has unconfirmed pending settlements in this group
-    const pendingSettlement = db.prepare(`
+    const pendingSettlement = await db.prepare(`
       SELECT id FROM settlements 
       WHERE group_id = ? AND (payer_id = ? OR receiver_id = ?) AND status != 'completed'
     `).get(m.group_id, userId, userId);
@@ -542,15 +542,15 @@ function deleteAccount(userId) {
   }
 
   // 3. Apply Admin Succession & Account Deletion Transaction
-  const deleteTx = db.transaction(() => {
+  await db.transaction(async () => {
     // For every group where this user is admin:
-    const adminGroups = db.prepare(`
+    const adminGroups = await db.prepare(`
       SELECT id FROM groups WHERE admin_id = ? AND deleted_at IS NULL
     `).all(userId);
 
     for (const g of adminGroups) {
       // Find the first member originally added by that admin (lowest order_index)
-      const successor = db.prepare(`
+      const successor = await db.prepare(`
         SELECT user_id FROM group_members 
         WHERE group_id = ? AND user_id != ? AND status = 'active' 
         ORDER BY order_index ASC 
@@ -559,36 +559,36 @@ function deleteAccount(userId) {
 
       if (successor) {
         // Appoint successor as admin
-        db.prepare('UPDATE groups SET admin_id = ?, updated_at = ? WHERE id = ?').run(successor.user_id, Date.now(), g.id);
-        db.prepare('UPDATE group_members SET role = ? WHERE group_id = ? AND user_id = ?').run('admin', g.id, successor.user_id);
+        await db.prepare('UPDATE groups SET admin_id = ?, updated_at = ? WHERE id = ?').run(successor.user_id, Date.now(), g.id);
+        await db.prepare('UPDATE group_members SET role = ? WHERE group_id = ? AND user_id = ?').run('admin', g.id, successor.user_id);
       } else {
         // No other members in group; mark group as deleted
-        db.prepare('UPDATE groups SET deleted_at = ?, updated_at = ? WHERE id = ?').run(Date.now(), Date.now(), g.id);
+        await db.prepare('UPDATE groups SET deleted_at = ?, updated_at = ? WHERE id = ?').run(Date.now(), Date.now(), g.id);
       }
     }
 
     // Remove user from active group memberships
-    db.prepare(`
+    await db.prepare(`
       UPDATE group_members SET status = 'left' WHERE user_id = ?
     `).run(userId);
 
     // Delete personal private data
-    db.prepare('DELETE FROM personal_expenses WHERE user_id = ?').run(userId);
-    db.prepare('DELETE FROM personal_expense_heads WHERE user_id = ?').run(userId);
-    db.prepare('DELETE FROM personal_cycles WHERE user_id = ?').run(userId);
-    db.prepare('DELETE FROM personal_bills WHERE user_id = ?').run(userId);
+    await db.prepare('DELETE FROM user_hidden_bills WHERE user_id = ?').run(userId);
+    await db.prepare('DELETE FROM personal_expenses WHERE user_id = ?').run(userId);
+    await db.prepare('DELETE FROM personal_expense_heads WHERE user_id = ?').run(userId);
+    await db.prepare('DELETE FROM personal_bills WHERE user_id = ?').run(userId);
+    await db.prepare('DELETE FROM personal_cycles WHERE user_id = ?').run(userId);
 
     // Delete sessions, push subscriptions, invitations, notifications
-    db.prepare('DELETE FROM user_sessions WHERE user_id = ?').run(userId);
-    db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').run(userId);
-    db.prepare('DELETE FROM group_invitations WHERE inviter_id = ? OR invitee_id = ?').run(userId, userId);
-    db.prepare('DELETE FROM notifications WHERE user_id = ?').run(userId);
+    await db.prepare('DELETE FROM user_sessions WHERE user_id = ?').run(userId);
+    await db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').run(userId);
+    await db.prepare('DELETE FROM group_invitations WHERE inviter_id = ? OR invitee_id = ?').run(userId, userId);
+    await db.prepare('DELETE FROM notifications WHERE user_id = ?').run(userId);
 
     // Delete user record itself
-    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+    await db.prepare('DELETE FROM users WHERE id = ?').run(userId);
   });
 
-  deleteTx();
   return { success: true, message: 'Account and personal data have been permanently deleted.' };
 }
 

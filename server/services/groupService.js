@@ -9,8 +9,8 @@ const { toPaise } = require('./personalService');
 /**
  * Helper to check if a user is an active member or admin of a group
  */
-function getMemberRole(groupId, userId) {
-  const member = db.prepare(`
+async function getMemberRole(groupId, userId) {
+  const member = await db.prepare(`
     SELECT gm.*, g.name as group_name, g.admin_id, g.deleted_at
     FROM group_members gm
     JOIN groups g ON g.id = gm.group_id
@@ -23,8 +23,8 @@ function getMemberRole(groupId, userId) {
 /**
  * Get active group cycle or null
  */
-function getActiveGroupCycle(groupId) {
-  return db.prepare(`
+async function getActiveGroupCycle(groupId) {
+  return await db.prepare(`
     SELECT * FROM group_cycles 
     WHERE group_id = ? AND status = 'active'
     ORDER BY cycle_number DESC 
@@ -35,8 +35,8 @@ function getActiveGroupCycle(groupId) {
 /**
  * Get the latest cycle of a group regardless of status
  */
-function getLatestGroupCycle(groupId) {
-  return db.prepare(`
+async function getLatestGroupCycle(groupId) {
+  return await db.prepare(`
     SELECT * FROM group_cycles 
     WHERE group_id = ? 
     ORDER BY cycle_number DESC 
@@ -48,11 +48,12 @@ function getLatestGroupCycle(groupId) {
  * Check if group cycle allows membership modification
  * Membership changes (add, remove, leave approve) are prohibited during an active cycle (Section 43)
  */
-function assertMembershipChangesAllowed(groupId) {
-  const activeCycle = getActiveGroupCycle(groupId);
+async function assertMembershipChangesAllowed(groupId) {
+  const activeCycle = await getActiveGroupCycle(groupId);
   if (activeCycle) {
     // Check if there are expenses in the active cycle
-    const count = db.prepare('SELECT COUNT(*) as count FROM group_expenses WHERE cycle_id = ?').get(activeCycle.id).count;
+    const countRow = await db.prepare('SELECT COUNT(*) as count FROM group_expenses WHERE cycle_id = ?').get(activeCycle.id);
+    const count = countRow ? countRow.count : 0;
     if (count > 0) {
       throw new Error('Complete billing before changing group membership.');
     }
@@ -72,29 +73,27 @@ async function createGroup(creatorId, { name, invitedUsernames = [] }) {
   const now = Date.now();
   const cleanName = name.trim();
 
-  const createTx = db.transaction(() => {
+  await db.transaction(async () => {
     // 1. Create group
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO groups (id, name, admin_id, created_at, updated_at, deleted_at)
       VALUES (?, ?, ?, ?, ?, NULL)
     `).run(groupId, cleanName, creatorId, now, now);
 
     // 2. Add creator as admin member (order_index = 0)
     const memberId = crypto.randomUUID();
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO group_members (id, group_id, user_id, role, temporary_name, order_index, joined_at, status)
       VALUES (?, ?, ?, 'admin', NULL, 0, ?, 'active')
     `).run(memberId, groupId, creatorId, now);
 
     // 3. Create initial group cycle #1
     const cycleId = crypto.randomUUID();
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO group_cycles (id, group_id, cycle_number, status, created_at)
       VALUES (?, ?, 1, 'active', ?)
     `).run(cycleId, groupId, now);
   });
-
-  createTx();
 
   // Send invitations to requested usernames
   const invitedResults = [];
@@ -111,14 +110,14 @@ async function createGroup(creatorId, { name, invitedUsernames = [] }) {
     }
   }
 
-  return getGroupDetails(groupId, creatorId);
+  return await getGroupDetails(groupId, creatorId);
 }
 
 /**
  * Send an invitation to join a group
  */
 async function sendInvitation(groupId, inviterId, inviteeUsername) {
-  const member = getMemberRole(groupId, inviterId);
+  const member = await getMemberRole(groupId, inviterId);
   if (!member) {
     throw new Error('You are not a member of this group.');
   }
@@ -127,19 +126,20 @@ async function sendInvitation(groupId, inviterId, inviteeUsername) {
   }
 
   // Check membership change restrictions (Section 43)
-  assertMembershipChangesAllowed(groupId);
+  await assertMembershipChangesAllowed(groupId);
 
   // Check 50-member limit (Section 25)
-  const currentMembersCount = db.prepare(`
+  const countRow = await db.prepare(`
     SELECT COUNT(*) as count FROM group_members WHERE group_id = ? AND status = 'active'
-  `).get(groupId).count;
+  `).get(groupId);
+  const currentMembersCount = countRow ? countRow.count : 0;
 
   if (currentMembersCount >= config.MAX_GROUP_MEMBERS) {
     throw new Error(`Group has reached the maximum capacity of ${config.MAX_GROUP_MEMBERS} members.`);
   }
 
   const cleanUsername = inviteeUsername.trim().toLowerCase();
-  const invitee = db.prepare('SELECT id, username, display_name FROM users WHERE username = ? COLLATE NOCASE').get(cleanUsername);
+  const invitee = await db.prepare('SELECT id, username, display_name FROM users WHERE username = ? COLLATE NOCASE').get(cleanUsername);
   if (!invitee) {
     throw new Error(`No user found with username "${inviteeUsername}".`);
   }
@@ -148,55 +148,63 @@ async function sendInvitation(groupId, inviterId, inviteeUsername) {
     throw new Error('You cannot invite yourself.');
   }
 
-  // Check if already an active member
-  const alreadyMember = db.prepare(`
+  // Check if user is already an active member
+  const alreadyMember = await db.prepare(`
     SELECT id FROM group_members WHERE group_id = ? AND user_id = ? AND status = 'active'
   `).get(groupId, invitee.id);
   if (alreadyMember) {
-    throw new Error(`@${cleanUsername} is already a member of this group.`);
+    throw new Error(`${invitee.username} is already an active member of this group.`);
   }
 
-  // Check if pending invitation already exists
-  const existingInvite = db.prepare(`
+  // Check if invitation is already pending
+  const existingInvite = await db.prepare(`
     SELECT id FROM group_invitations 
     WHERE group_id = ? AND invitee_id = ? AND status = 'pending'
   `).get(groupId, invitee.id);
   if (existingInvite) {
-    throw new Error(`An invitation is already pending for @${cleanUsername}.`);
+    throw new Error(`An invitation has already been sent to ${invitee.username}.`);
   }
 
-  const inviteId = crypto.randomUUID();
+  const invitationId = crypto.randomUUID();
   const now = Date.now();
 
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO group_invitations (id, group_id, inviter_id, invitee_id, status, created_at)
     VALUES (?, ?, ?, ?, 'pending', ?)
-  `).run(inviteId, groupId, inviterId, invitee.id, now);
+  `).run(invitationId, groupId, inviterId, invitee.id, now);
 
-  const group = db.prepare('SELECT name FROM groups WHERE id = ?').get(groupId);
-  const inviter = db.prepare('SELECT username, display_name FROM users WHERE id = ?').get(inviterId);
+  const group = await db.prepare('SELECT name FROM groups WHERE id = ?').get(groupId);
+  const inviter = await db.prepare('SELECT username, display_name FROM users WHERE id = ?').get(inviterId);
 
-  // Send in-app notification with Accept/Decline action
+  // Send real-time in-app notification & web push to invitee
   await notificationService.createNotification(invitee.id, {
     type: 'group_invitation',
     title: 'Group Invitation',
     message: `${inviter.display_name || inviter.username} invited you to join "${group.name}".`,
     data: {
-      invitationId: inviteId,
+      invitationId,
       groupId,
       groupName: group.name,
       inviterName: inviter.display_name || inviter.username
     }
   });
 
-  return { success: true, invitationId: inviteId, invitee: invitee.username };
+  return {
+    success: true,
+    invitationId,
+    invitee: {
+      id: invitee.id,
+      username: invitee.username,
+      displayName: invitee.display_name
+    }
+  };
 }
 
 /**
- * Respond to a group invitation (Accept / Decline)
+ * Accept or decline a group invitation
  */
 async function respondToInvitation(inviteeId, invitationId, accept) {
-  const invite = db.prepare(`
+  const invite = await db.prepare(`
     SELECT gi.*, g.name as group_name, g.admin_id, u.username as inviter_username
     FROM group_invitations gi
     JOIN groups g ON g.id = gi.group_id
@@ -209,16 +217,15 @@ async function respondToInvitation(inviteeId, invitationId, accept) {
   }
 
   const now = Date.now();
-  const status = accept ? 'accepted' : 'declined';
 
   if (!accept) {
-    db.prepare(`
+    await db.prepare(`
       UPDATE group_invitations 
       SET status = 'declined', responded_at = ? 
       WHERE id = ?
     `).run(now, invitationId);
 
-    const responder = db.prepare('SELECT username, display_name FROM users WHERE id = ?').get(inviteeId);
+    const responder = await db.prepare('SELECT username, display_name FROM users WHERE id = ?').get(inviteeId);
     await notificationService.createNotification(invite.inviter_id, {
       type: 'invitation_declined',
       title: 'Invitation Declined',
@@ -230,47 +237,47 @@ async function respondToInvitation(inviteeId, invitationId, accept) {
   }
 
   // If accepting, check capacity again
-  const currentMembersCount = db.prepare(`
+  const countRow = await db.prepare(`
     SELECT COUNT(*) as count FROM group_members WHERE group_id = ? AND status = 'active'
-  `).get(invite.group_id).count;
+  `).get(invite.group_id);
+  const currentMembersCount = countRow ? countRow.count : 0;
 
   if (currentMembersCount >= config.MAX_GROUP_MEMBERS) {
     throw new Error('This group is currently at full capacity (50 members).');
   }
 
   // Get max order_index to preserve member-addition ordering for admin succession
-  const maxOrder = db.prepare(`
+  const maxRow = await db.prepare(`
     SELECT COALESCE(MAX(order_index), 0) as max_order FROM group_members WHERE group_id = ?
-  `).get(invite.group_id).max_order;
+  `).get(invite.group_id);
+  const maxOrder = maxRow ? maxRow.max_order : 0;
 
-  const joinTx = db.transaction(() => {
+  await db.transaction(async () => {
     // Update invitation status
-    db.prepare(`
+    await db.prepare(`
       UPDATE group_invitations 
       SET status = 'accepted', responded_at = ? 
       WHERE id = ?
     `).run(now, invitationId);
 
     // Check if member was previously in group
-    const prevMember = db.prepare('SELECT id FROM group_members WHERE group_id = ? AND user_id = ?').get(invite.group_id, inviteeId);
+    const prevMember = await db.prepare('SELECT id FROM group_members WHERE group_id = ? AND user_id = ?').get(invite.group_id, inviteeId);
     if (prevMember) {
-      db.prepare(`
+      await db.prepare(`
         UPDATE group_members 
         SET status = 'active', role = 'member', order_index = ?, joined_at = ?
         WHERE id = ?
       `).run(maxOrder + 1, now, prevMember.id);
     } else {
       const memberId = crypto.randomUUID();
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO group_members (id, group_id, user_id, role, temporary_name, order_index, joined_at, status)
         VALUES (?, ?, ?, 'member', NULL, ?, ?, 'active')
       `).run(memberId, invite.group_id, inviteeId, maxOrder + 1, now);
     }
   });
 
-  joinTx();
-
-  const responder = db.prepare('SELECT username, display_name FROM users WHERE id = ?').get(inviteeId);
+  const responder = await db.prepare('SELECT username, display_name FROM users WHERE id = ?').get(inviteeId);
 
   // Notify admin that user joined
   await notificationService.createNotification(invite.admin_id, {
@@ -296,15 +303,15 @@ async function respondToInvitation(inviteeId, invitationId, accept) {
 /**
  * Assign temporary name to a group member (Admin only, Section 28)
  */
-function setMemberTemporaryName(adminId, groupId, targetUserId, temporaryName) {
-  const adminMember = getMemberRole(groupId, adminId);
+async function setMemberTemporaryName(adminId, groupId, targetUserId, temporaryName) {
+  const adminMember = await getMemberRole(groupId, adminId);
   if (!adminMember || adminMember.role !== 'admin') {
     throw new Error('Only the group admin can assign temporary names.');
   }
 
   const cleanTempName = temporaryName && temporaryName.trim() ? temporaryName.trim() : null;
 
-  db.prepare(`
+  await db.prepare(`
     UPDATE group_members 
     SET temporary_name = ? 
     WHERE group_id = ? AND user_id = ?
@@ -319,33 +326,38 @@ function setMemberTemporaryName(adminId, groupId, targetUserId, temporaryName) {
 }
 
 /**
- * Remove a member from the group (Admin only, ONLY AFTER BILLING, Section 46)
+ * Remove a member from the group (Admin only, Section 44)
  */
 async function removeMember(adminId, groupId, targetUserId) {
-  const adminMember = getMemberRole(groupId, adminId);
+  const adminMember = await getMemberRole(groupId, adminId);
   if (!adminMember || adminMember.role !== 'admin') {
     throw new Error('Only the group admin can remove members.');
   }
 
-  if (targetUserId === adminId) {
-    throw new Error('Admin cannot remove themselves. Use leave group or delete group.');
+  if (adminId === targetUserId) {
+    throw new Error('Admin cannot remove themselves using this option. Use leave group.');
   }
 
-  // Must be after billing
-  assertMembershipChangesAllowed(groupId);
+  await assertMembershipChangesAllowed(groupId);
 
-  db.prepare(`
+  const targetMember = await getMemberRole(groupId, targetUserId);
+  if (!targetMember) {
+    throw new Error('Target user is not an active member of this group.');
+  }
+
+  const now = Date.now();
+  await db.prepare(`
     UPDATE group_members 
     SET status = 'removed' 
     WHERE group_id = ? AND user_id = ?
   `).run(groupId, targetUserId);
 
-  const group = db.prepare('SELECT name FROM groups WHERE id = ?').get(groupId);
+  const group = await db.prepare('SELECT name FROM groups WHERE id = ?').get(groupId);
 
   await notificationService.createNotification(targetUserId, {
     type: 'member_removed',
     title: 'Removed from Group',
-    message: `You were removed from "${group.name}".`,
+    message: `You were removed from "${group.name}" by the admin.`,
     data: { groupId }
   });
 
@@ -358,62 +370,57 @@ async function removeMember(adminId, groupId, targetUserId) {
 }
 
 /**
- * Member requests to leave group (Section 45)
+ * Non-admin requests to leave the group (Section 45)
  */
 async function requestLeaveGroup(userId, groupId) {
-  const member = getMemberRole(groupId, userId);
+  const member = await getMemberRole(groupId, userId);
   if (!member) {
-    throw new Error('You are not a member of this group.');
+    throw new Error('You are not an active member of this group.');
+  }
+  if (member.role === 'admin') {
+    throw new Error('Admin must handle succession before leaving.');
   }
 
-  if (member.role === 'admin') {
-    // If admin wants to leave, handle admin departure / succession
-    return await handleAdminLeave(userId, groupId);
-  }
+  await assertMembershipChangesAllowed(groupId);
 
   const now = Date.now();
-  db.prepare(`
+  await db.prepare(`
     UPDATE group_members 
     SET leave_requested_at = ? 
     WHERE group_id = ? AND user_id = ?
   `).run(now, groupId, userId);
 
-  const user = db.prepare('SELECT username, display_name FROM users WHERE id = ?').get(userId);
-  const group = db.prepare('SELECT admin_id, name FROM groups WHERE id = ?').get(groupId);
+  const user = await db.prepare('SELECT username, display_name FROM users WHERE id = ?').get(userId);
+  const group = await db.prepare('SELECT admin_id, name FROM groups WHERE id = ?').get(groupId);
 
   await notificationService.createNotification(group.admin_id, {
-    type: 'leave_requested',
-    title: 'Member Requested to Leave',
-    message: `${user.display_name || user.username} has requested to leave "${group.name}". You can approve after billing is complete.`,
+    type: 'leave_request',
+    title: 'Leave Request Received',
+    message: `${user.display_name || user.username} has requested to leave "${group.name}".`,
     data: { groupId, userId }
   });
 
-  websocketService.broadcastToGroup(groupId, 'leave_requested', {
-    groupId,
-    userId
-  });
-
-  return { success: true, message: 'Leave request submitted to group admin.' };
+  return { success: true, message: 'Leave request submitted to admin for approval.' };
 }
 
 /**
- * Admin approves leave request (ONLY AFTER BILLING, Section 45)
+ * Admin approves a member's leave request (Section 46)
  */
 async function approveLeaveRequest(adminId, groupId, targetUserId) {
-  const adminMember = getMemberRole(groupId, adminId);
+  const adminMember = await getMemberRole(groupId, adminId);
   if (!adminMember || adminMember.role !== 'admin') {
     throw new Error('Only the group admin can approve leave requests.');
   }
 
-  assertMembershipChangesAllowed(groupId);
+  await assertMembershipChangesAllowed(groupId);
 
-  db.prepare(`
+  await db.prepare(`
     UPDATE group_members 
     SET status = 'left', leave_requested_at = NULL 
     WHERE group_id = ? AND user_id = ?
   `).run(groupId, targetUserId);
 
-  const group = db.prepare('SELECT name FROM groups WHERE id = ?').get(groupId);
+  const group = await db.prepare('SELECT name FROM groups WHERE id = ?').get(groupId);
 
   await notificationService.createNotification(targetUserId, {
     type: 'leave_approved',
@@ -435,28 +442,27 @@ async function approveLeaveRequest(adminId, groupId, targetUserId) {
  * The first member originally added by that admin becomes the new admin.
  */
 async function handleAdminLeave(adminId, groupId) {
-  assertMembershipChangesAllowed(groupId);
+  await assertMembershipChangesAllowed(groupId);
 
   // Find the first member originally added by that admin (lowest order_index)
-  const successor = db.prepare(`
+  const successor = await db.prepare(`
     SELECT user_id FROM group_members 
     WHERE group_id = ? AND user_id != ? AND status = 'active' 
     ORDER BY order_index ASC 
     LIMIT 1
   `).get(groupId, adminId);
 
-  const group = db.prepare('SELECT name FROM groups WHERE id = ?').get(groupId);
+  const group = await db.prepare('SELECT name FROM groups WHERE id = ?').get(groupId);
   const now = Date.now();
 
   if (successor) {
-    const successorTx = db.transaction(() => {
+    await db.transaction(async () => {
       // 1. Promote successor to admin
-      db.prepare('UPDATE groups SET admin_id = ?, updated_at = ? WHERE id = ?').run(successor.user_id, now, groupId);
-      db.prepare("UPDATE group_members SET role = 'admin' WHERE group_id = ? AND user_id = ?").run(groupId, successor.user_id);
+      await db.prepare('UPDATE groups SET admin_id = ?, updated_at = ? WHERE id = ?').run(successor.user_id, now, groupId);
+      await db.prepare("UPDATE group_members SET role = 'admin' WHERE group_id = ? AND user_id = ?").run(groupId, successor.user_id);
       // 2. Mark old admin as left
-      db.prepare("UPDATE group_members SET status = 'left' WHERE group_id = ? AND user_id = ?").run(groupId, adminId);
+      await db.prepare("UPDATE group_members SET status = 'left' WHERE group_id = ? AND user_id = ?").run(groupId, adminId);
     });
-    successorTx();
 
     await notificationService.createNotification(successor.user_id, {
       type: 'admin_promoted',
@@ -474,8 +480,8 @@ async function handleAdminLeave(adminId, groupId) {
     return { success: true, newAdminId: successor.user_id };
   } else {
     // No other members; mark group as deleted
-    db.prepare('UPDATE groups SET deleted_at = ?, updated_at = ? WHERE id = ?').run(now, now, groupId);
-    db.prepare("UPDATE group_members SET status = 'left' WHERE group_id = ? AND user_id = ?").run(groupId, adminId);
+    await db.prepare('UPDATE groups SET deleted_at = ?, updated_at = ? WHERE id = ?').run(now, now, groupId);
+    await db.prepare("UPDATE group_members SET status = 'left' WHERE group_id = ? AND user_id = ?").run(groupId, adminId);
 
     return { success: true, groupClosed: true };
   }
@@ -483,18 +489,17 @@ async function handleAdminLeave(adminId, groupId) {
 
 /**
  * Delete group (Admin only, ONLY AFTER BILLING, Section 48)
- * Preserves historical bills
  */
 async function deleteGroup(adminId, groupId) {
-  const member = getMemberRole(groupId, adminId);
-  if (!member || member.role !== 'admin') {
-    throw new Error('Only the group admin can delete the group.');
+  const adminMember = await getMemberRole(groupId, adminId);
+  if (!adminMember || adminMember.role !== 'admin') {
+    throw new Error('Only the group admin can delete this group.');
   }
 
-  assertMembershipChangesAllowed(groupId);
+  await assertMembershipChangesAllowed(groupId);
 
   const now = Date.now();
-  db.prepare(`
+  await db.prepare(`
     UPDATE groups 
     SET deleted_at = ?, updated_at = ? 
     WHERE id = ?
@@ -506,15 +511,15 @@ async function deleteGroup(adminId, groupId) {
 }
 
 /**
- * Add Group Expense (Concurrency-safe, idempotent, Section 30-33)
+ * Add Group Expense (Section 30)
  */
-function addGroupExpense(userId, groupId, { description, amount, idempotencyKey = null }) {
-  const member = getMemberRole(groupId, userId);
+async function addGroupExpense(userId, groupId, { description, amount, idempotencyKey = null }) {
+  const member = await getMemberRole(groupId, userId);
   if (!member) {
     throw new Error('You are not an active member of this group.');
   }
 
-  const activeCycle = getActiveGroupCycle(groupId);
+  const activeCycle = await getActiveGroupCycle(groupId);
   if (!activeCycle) {
     throw new Error('This cycle is already billed. Admin must start a new cycle to add expenses.');
   }
@@ -530,19 +535,19 @@ function addGroupExpense(userId, groupId, { description, amount, idempotencyKey 
 
   // Idempotency check
   if (idempotencyKey) {
-    const existing = db.prepare('SELECT * FROM group_expenses WHERE idempotency_key = ?').get(idempotencyKey);
+    const existing = await db.prepare('SELECT * FROM group_expenses WHERE idempotency_key = ?').get(idempotencyKey);
     if (existing) return existing;
   }
 
   const id = crypto.randomUUID();
   const now = Date.now();
 
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO group_expenses (id, group_id, cycle_id, user_id, description, amount, idempotency_key, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(id, groupId, activeCycle.id, userId, description.trim(), amountPaise, idempotencyKey, now);
 
-  const expense = db.prepare(`
+  const expense = await db.prepare(`
     SELECT ge.*, u.username, u.display_name, gm.temporary_name
     FROM group_expenses ge
     JOIN users u ON u.id = ge.user_id
@@ -562,11 +567,11 @@ function addGroupExpense(userId, groupId, { description, amount, idempotencyKey 
 /**
  * Edit Group Expense (Only own expense, active cycle, Section 31)
  */
-function updateGroupExpense(userId, groupId, expenseId, { description, amount }) {
-  const member = getMemberRole(groupId, userId);
+async function updateGroupExpense(userId, groupId, expenseId, { description, amount }) {
+  const member = await getMemberRole(groupId, userId);
   if (!member) throw new Error('Not an active member.');
 
-  const expense = db.prepare(`
+  const expense = await db.prepare(`
     SELECT ge.*, gc.status as cycle_status
     FROM group_expenses ge
     JOIN group_cycles gc ON gc.id = ge.cycle_id
@@ -600,10 +605,10 @@ function updateGroupExpense(userId, groupId, expenseId, { description, amount })
 
   if (updates.length > 0) {
     params.push(expenseId);
-    db.prepare(`UPDATE group_expenses SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+    await db.prepare(`UPDATE group_expenses SET ${updates.join(', ')} WHERE id = ?`).run(...params);
   }
 
-  const updated = db.prepare(`
+  const updated = await db.prepare(`
     SELECT ge.*, u.username, u.display_name, gm.temporary_name
     FROM group_expenses ge
     JOIN users u ON u.id = ge.user_id
@@ -622,11 +627,11 @@ function updateGroupExpense(userId, groupId, expenseId, { description, amount })
 /**
  * Delete Group Expense (Only own expense, active cycle, Section 31)
  */
-function deleteGroupExpense(userId, groupId, expenseId) {
-  const member = getMemberRole(groupId, userId);
+async function deleteGroupExpense(userId, groupId, expenseId) {
+  const member = await getMemberRole(groupId, userId);
   if (!member) throw new Error('Not an active member.');
 
-  const expense = db.prepare(`
+  const expense = await db.prepare(`
     SELECT ge.*, gc.status as cycle_status
     FROM group_expenses ge
     JOIN group_cycles gc ON gc.id = ge.cycle_id
@@ -643,7 +648,7 @@ function deleteGroupExpense(userId, groupId, expenseId) {
     throw new Error('Cannot delete an expense from a billed cycle.');
   }
 
-  db.prepare('DELETE FROM group_expenses WHERE id = ?').run(expenseId);
+  await db.prepare('DELETE FROM group_expenses WHERE id = ?').run(expenseId);
 
   websocketService.broadcastToGroup(groupId, 'expense_deleted', {
     groupId,
@@ -658,18 +663,18 @@ function deleteGroupExpense(userId, groupId, expenseId) {
  * Admin only, locked atomically, exactly one bill per cycle
  */
 async function generateGroupBill(adminId, groupId) {
-  const adminMember = getMemberRole(groupId, adminId);
+  const adminMember = await getMemberRole(groupId, adminId);
   if (!adminMember || adminMember.role !== 'admin') {
     throw new Error('Only the group admin can generate billing for this group.');
   }
 
-  const activeCycle = getActiveGroupCycle(groupId);
+  const activeCycle = await getActiveGroupCycle(groupId);
   if (!activeCycle) {
     throw new Error('No active cycle found to bill.');
   }
 
   // Check if bill already exists (idempotency guard)
-  const existingBill = db.prepare('SELECT * FROM group_bills WHERE cycle_id = ?').get(activeCycle.id);
+  const existingBill = await db.prepare('SELECT * FROM group_bills WHERE cycle_id = ?').get(activeCycle.id);
   if (existingBill) {
     return {
       bill: existingBill,
@@ -677,10 +682,10 @@ async function generateGroupBill(adminId, groupId) {
     };
   }
 
-  const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(groupId);
+  const group = await db.prepare('SELECT * FROM groups WHERE id = ?').get(groupId);
 
   // Get all active members for this cycle with frozen snapshot attributes
-  const members = db.prepare(`
+  const members = await db.prepare(`
     SELECT gm.user_id, gm.role, gm.temporary_name, gm.order_index,
            u.username, u.display_name, u.avatar_url
     FROM group_members gm
@@ -694,7 +699,7 @@ async function generateGroupBill(adminId, groupId) {
   }
 
   // Get all expenses in this cycle
-  const expenses = db.prepare(`
+  const expenses = await db.prepare(`
     SELECT * FROM group_expenses 
     WHERE cycle_id = ? 
     ORDER BY created_at ASC
@@ -750,16 +755,16 @@ async function generateGroupBill(adminId, groupId) {
   const snapshotJson = JSON.stringify(snapshot);
 
   // Atomic transaction: lock cycle, save bill, insert individual settlements
-  const billingTx = db.transaction(() => {
+  await db.transaction(async () => {
     // 1. Lock cycle
-    db.prepare(`
+    await db.prepare(`
       UPDATE group_cycles 
       SET status = 'billed', billed_at = ? 
       WHERE id = ? AND status = 'active'
     `).run(now, activeCycle.id);
 
     // 2. Insert group bill
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO group_bills (
         id, group_id, cycle_id, cycle_number, group_name,
         total_spent, member_count, equal_share, bill_snapshot_json, created_at
@@ -772,14 +777,12 @@ async function generateGroupBill(adminId, groupId) {
     // 3. Insert individual settlement records with status 'pending'
     for (const s of settlementCalc.settlements) {
       const sId = crypto.randomUUID();
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO settlements (id, bill_id, group_id, payer_id, receiver_id, amount, status, created_at)
         VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
       `).run(sId, billId, groupId, s.payerId, s.receiverId, s.amount, now);
     }
   });
-
-  billingTx();
 
   // Notify members that billing was generated
   for (const m of members) {
@@ -798,7 +801,7 @@ async function generateGroupBill(adminId, groupId) {
     cycleNumber: activeCycle.cycle_number
   });
 
-  const savedBill = db.prepare('SELECT * FROM group_bills WHERE id = ?').get(billId);
+  const savedBill = await db.prepare('SELECT * FROM group_bills WHERE id = ?').get(billId);
 
   return {
     bill: savedBill,
@@ -810,30 +813,30 @@ async function generateGroupBill(adminId, groupId) {
  * Start a New Group Cycle (Admin only, Section 42)
  */
 async function startNewGroupCycle(adminId, groupId) {
-  const adminMember = getMemberRole(groupId, adminId);
+  const adminMember = await getMemberRole(groupId, adminId);
   if (!adminMember || adminMember.role !== 'admin') {
     throw new Error('Only the group admin can start a new billing cycle.');
   }
 
-  const activeCycle = getActiveGroupCycle(groupId);
+  const activeCycle = await getActiveGroupCycle(groupId);
   if (activeCycle) {
     throw new Error('An active cycle is already in progress. Complete billing before starting a new cycle.');
   }
 
-  const lastCycle = getLatestGroupCycle(groupId);
+  const lastCycle = await getLatestGroupCycle(groupId);
   const nextCycleNumber = lastCycle ? lastCycle.cycle_number + 1 : 1;
   const newCycleId = crypto.randomUUID();
   const now = Date.now();
 
-  db.prepare(`
+  await db.prepare(`
     INSERT INTO group_cycles (id, group_id, cycle_number, status, created_at)
     VALUES (?, ?, ?, 'active', ?)
   `).run(newCycleId, groupId, nextCycleNumber, now);
 
-  const group = db.prepare('SELECT name FROM groups WHERE id = ?').get(groupId);
+  const group = await db.prepare('SELECT name FROM groups WHERE id = ?').get(groupId);
 
   // Notify members
-  const members = db.prepare(`SELECT user_id FROM group_members WHERE group_id = ? AND status = 'active'`).all(groupId);
+  const members = await db.prepare(`SELECT user_id FROM group_members WHERE group_id = ? AND status = 'active'`).all(groupId);
   for (const m of members) {
     await notificationService.createNotification(m.user_id, {
       type: 'new_cycle_started',
@@ -848,25 +851,25 @@ async function startNewGroupCycle(adminId, groupId) {
     cycleNumber: nextCycleNumber
   });
 
-  return getGroupDetails(groupId, adminId);
+  return await getGroupDetails(groupId, adminId);
 }
 
 /**
  * Get detailed group view for a member:
  * Active cycle expenses, live balances, members, settlements, and roles
  */
-function getGroupDetails(groupId, userId) {
-  const member = getMemberRole(groupId, userId);
+async function getGroupDetails(groupId, userId) {
+  const member = await getMemberRole(groupId, userId);
   if (!member) {
     throw new Error('Group not found or you are not a member.');
   }
 
-  const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(groupId);
-  const activeCycle = getActiveGroupCycle(groupId);
-  const latestCycle = getLatestGroupCycle(groupId);
+  const group = await db.prepare('SELECT * FROM groups WHERE id = ?').get(groupId);
+  const activeCycle = await getActiveGroupCycle(groupId);
+  const latestCycle = await getLatestGroupCycle(groupId);
 
   // Get active members with profile info
-  const members = db.prepare(`
+  const members = await db.prepare(`
     SELECT gm.id as membership_id, gm.user_id, gm.role, gm.temporary_name, gm.order_index, gm.joined_at, gm.leave_requested_at,
            u.username, u.display_name, u.avatar_url
     FROM group_members gm
@@ -879,7 +882,7 @@ function getGroupDetails(groupId, userId) {
   const currentCycleId = activeCycle ? activeCycle.id : (latestCycle ? latestCycle.id : null);
   let expenses = [];
   if (currentCycleId) {
-    expenses = db.prepare(`
+    expenses = await db.prepare(`
       SELECT ge.*, u.username, u.display_name, gm.temporary_name, u.avatar_url
       FROM group_expenses ge
       JOIN users u ON u.id = ge.user_id
@@ -909,9 +912,9 @@ function getGroupDetails(groupId, userId) {
   let latestBill = null;
   let activeSettlements = [];
   if (latestCycle && latestCycle.status === 'billed') {
-    latestBill = db.prepare('SELECT * FROM group_bills WHERE cycle_id = ?').get(latestCycle.id);
+    latestBill = await db.prepare('SELECT * FROM group_bills WHERE cycle_id = ?').get(latestCycle.id);
     if (latestBill) {
-      activeSettlements = db.prepare(`
+      activeSettlements = await db.prepare(`
         SELECT s.*, 
                pu.username as payer_username, pu.display_name as payer_name,
                ru.username as receiver_username, ru.display_name as receiver_name
@@ -963,8 +966,8 @@ function getGroupDetails(groupId, userId) {
 /**
  * List all groups for a user
  */
-function getUserGroups(userId) {
-  const groups = db.prepare(`
+async function getUserGroups(userId) {
+  const groups = await db.prepare(`
     SELECT g.id, g.name, g.admin_id, gm.role, gm.temporary_name, gm.joined_at,
            (SELECT COUNT(*) FROM group_members WHERE group_id = g.id AND status = 'active') as member_count,
            (SELECT status FROM group_cycles WHERE group_id = g.id ORDER BY cycle_number DESC LIMIT 1) as cycle_status,

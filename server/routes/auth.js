@@ -59,12 +59,12 @@ router.post('/login', async (req, res) => {
 });
 
 // 5. Logout
-router.post('/logout', authenticate, (req, res) => {
+router.post('/logout', authenticate, async (req, res) => {
   try {
     // Find session id from token
-    const session = db.prepare('SELECT id FROM user_sessions WHERE token = ?').get(req.token);
+    const session = await db.prepare('SELECT id FROM user_sessions WHERE token = ?').get(req.token);
     if (session) {
-      authService.logout(session.id);
+      await authService.logout(session.id);
     }
     res.json({ success: true, message: 'Logged out successfully.' });
   } catch (err) {
@@ -78,15 +78,15 @@ router.get('/me', authenticate, (req, res) => {
 });
 
 // 7. Check username availability
-router.get('/check-username/:username', (req, res) => {
-  const available = authService.isUsernameAvailable(req.params.username);
+router.get('/check-username/:username', async (req, res) => {
+  const available = await authService.isUsernameAvailable(req.params.username);
   res.json({ available });
 });
 
 // 8. Search users
-router.get('/search-users', authenticate, (req, res) => {
+router.get('/search-users', authenticate, async (req, res) => {
   const query = req.query.q || '';
-  const users = authService.searchUsersByUsername(query, req.user.id);
+  const users = await authService.searchUsersByUsername(query, req.user.id);
   res.json({ users });
 });
 
@@ -168,10 +168,10 @@ router.post('/verify-change-email', authenticate, async (req, res) => {
 });
 
 // 14. Update profile info
-router.put('/profile', authenticate, (req, res) => {
+router.put('/profile', authenticate, async (req, res) => {
   try {
     const { displayName, bio } = req.body;
-    const updated = authService.updateProfile(req.user.id, { displayName, bio });
+    const updated = await authService.updateProfile(req.user.id, { displayName, bio });
     res.json({ user: updated });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -179,13 +179,13 @@ router.put('/profile', authenticate, (req, res) => {
 });
 
 // 15. Upload profile picture
-router.post('/avatar', authenticate, uploadAvatar.single('avatar'), (req, res) => {
+router.post('/avatar', authenticate, uploadAvatar.single('avatar'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No image file uploaded.' });
     }
     const avatarUrl = `/uploads/avatars/${req.file.filename}`;
-    const updated = authService.updateProfile(req.user.id, { avatarUrl });
+    const updated = await authService.updateProfile(req.user.id, { avatarUrl });
     res.json({ user: updated, avatarUrl });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -193,9 +193,9 @@ router.post('/avatar', authenticate, uploadAvatar.single('avatar'), (req, res) =
 });
 
 // 16. Permanent account deletion
-router.delete('/account', authenticate, (req, res) => {
+router.delete('/account', authenticate, async (req, res) => {
   try {
-    const result = authService.deleteAccount(req.user.id);
+    const result = await authService.deleteAccount(req.user.id);
     res.json(result);
   } catch (err) {
     res.status(400).json({ error: err.message });

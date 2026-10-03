@@ -6,10 +6,10 @@ const { authenticate } = require('../middleware/auth');
 router.use(authenticate);
 
 // Get analytics data
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { filterType, startDate, endDate } = req.query;
-    const data = analyticsService.getAnalytics(req.user.id, {
+    const data = await analyticsService.getAnalytics(req.user.id, {
       filterType: filterType || 'all',
       startDate,
       endDate

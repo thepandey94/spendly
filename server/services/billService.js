@@ -4,9 +4,9 @@ const db = require('../db/database');
 /**
  * Get all bills for a user (Personal bills and Group bills they participated in)
  */
-function getUserBills(userId) {
+async function getUserBills(userId) {
   // 1. Personal bills (excluding those user chose to hide/delete from their view)
-  const personalBills = db.prepare(`
+  const personalBills = await db.prepare(`
     SELECT pb.*, 'personal' as bill_type
     FROM personal_bills pb
     WHERE pb.user_id = ? AND pb.hidden_by_user = 0
@@ -14,7 +14,7 @@ function getUserBills(userId) {
   `).all(userId);
 
   // 2. Group bills where user was a member, excluding those hidden in user_hidden_bills
-  const groupBills = db.prepare(`
+  const groupBills = await db.prepare(`
     SELECT gb.*, 'group' as bill_type
     FROM group_bills gb
     JOIN group_members gm ON gm.group_id = gb.group_id AND gm.user_id = ?
@@ -67,9 +67,9 @@ function getUserBills(userId) {
 /**
  * Get bill details by ID
  */
-function getBillDetails(userId, billId, billType) {
+async function getBillDetails(userId, billId, billType) {
   if (billType === 'personal') {
-    const bill = db.prepare(`
+    const bill = await db.prepare(`
       SELECT * FROM personal_bills WHERE id = ? AND user_id = ?
     `).get(billId, userId);
 
@@ -80,7 +80,7 @@ function getBillDetails(userId, billId, billType) {
       snapshot: JSON.parse(bill.bill_snapshot_json)
     };
   } else if (billType === 'group') {
-    const bill = db.prepare(`
+    const bill = await db.prepare(`
       SELECT gb.* 
       FROM group_bills gb
       JOIN group_members gm ON gm.group_id = gb.group_id AND gm.user_id = ?
@@ -89,15 +89,15 @@ function getBillDetails(userId, billId, billType) {
 
     if (!bill) throw new Error('Group bill not found or access denied.');
 
-    const settlements = db.prepare(`
+    const settlements = await db.prepare(`
       SELECT s.*, 
              pu.username as payer_username, pu.display_name as payer_name,
              ru.username as receiver_username, ru.display_name as receiver_name
-      FROM settlements s
-      JOIN users pu ON pu.id = s.payer_id
-      JOIN users ru ON ru.id = s.receiver_id
-      WHERE s.bill_id = ?
-      ORDER BY s.created_at ASC
+        FROM settlements s
+        JOIN users pu ON pu.id = s.payer_id
+        JOIN users ru ON ru.id = s.receiver_id
+        WHERE s.bill_id = ?
+        ORDER BY s.created_at ASC
     `).all(billId);
 
     return {
@@ -115,22 +115,22 @@ function getBillDetails(userId, billId, billType) {
  * Delete a user's visible bill record (Section 49)
  * "Deleting a user's visible bill record must not corrupt shared historical records belonging to other users."
  */
-function hideUserBill(userId, billId, billType) {
+async function hideUserBill(userId, billId, billType) {
   if (billType === 'personal') {
-    db.prepare(`
+    await db.prepare(`
       UPDATE personal_bills 
       SET hidden_by_user = 1 
       WHERE id = ? AND user_id = ?
     `).run(billId, userId);
   } else if (billType === 'group') {
-    const existing = db.prepare(`
+    const existing = await db.prepare(`
       SELECT id FROM user_hidden_bills 
       WHERE user_id = ? AND bill_id = ? AND bill_type = 'group'
     `).get(userId, billId);
 
     if (!existing) {
       const id = crypto.randomUUID();
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO user_hidden_bills (id, user_id, bill_id, bill_type, created_at)
         VALUES (?, ?, ?, 'group', ?)
       `).run(id, userId, billId, Date.now());
