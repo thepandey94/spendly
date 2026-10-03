@@ -1,0 +1,998 @@
+const crypto = require('crypto');
+const db = require('../db/database');
+const config = require('../config');
+const notificationService = require('./notificationService');
+const websocketService = require('./websocketService');
+const settlementService = require('./settlementService');
+const { toPaise } = require('./personalService');
+
+/**
+ * Helper to check if a user is an active member or admin of a group
+ */
+function getMemberRole(groupId, userId) {
+  const member = db.prepare(`
+    SELECT gm.*, g.name as group_name, g.admin_id, g.deleted_at
+    FROM group_members gm
+    JOIN groups g ON g.id = gm.group_id
+    WHERE gm.group_id = ? AND gm.user_id = ? AND gm.status = 'active' AND g.deleted_at IS NULL
+  `).get(groupId, userId);
+
+  return member;
+}
+
+/**
+ * Get active group cycle or null
+ */
+function getActiveGroupCycle(groupId) {
+  return db.prepare(`
+    SELECT * FROM group_cycles 
+    WHERE group_id = ? AND status = 'active'
+    ORDER BY cycle_number DESC 
+    LIMIT 1
+  `).get(groupId);
+}
+
+/**
+ * Get the latest cycle of a group regardless of status
+ */
+function getLatestGroupCycle(groupId) {
+  return db.prepare(`
+    SELECT * FROM group_cycles 
+    WHERE group_id = ? 
+    ORDER BY cycle_number DESC 
+    LIMIT 1
+  `).get(groupId);
+}
+
+/**
+ * Check if group cycle allows membership modification
+ * Membership changes (add, remove, leave approve) are prohibited during an active cycle (Section 43)
+ */
+function assertMembershipChangesAllowed(groupId) {
+  const activeCycle = getActiveGroupCycle(groupId);
+  if (activeCycle) {
+    // Check if there are expenses in the active cycle
+    const count = db.prepare('SELECT COUNT(*) as count FROM group_expenses WHERE cycle_id = ?').get(activeCycle.id).count;
+    if (count > 0) {
+      throw new Error('Complete billing before changing group membership.');
+    }
+  }
+}
+
+/**
+ * Create a new group
+ * Group creator becomes Admin
+ */
+async function createGroup(creatorId, { name, invitedUsernames = [] }) {
+  if (!name || !name.trim()) {
+    throw new Error('Group name is required.');
+  }
+
+  const groupId = crypto.randomUUID();
+  const now = Date.now();
+  const cleanName = name.trim();
+
+  const createTx = db.transaction(() => {
+    // 1. Create group
+    db.prepare(`
+      INSERT INTO groups (id, name, admin_id, created_at, updated_at, deleted_at)
+      VALUES (?, ?, ?, ?, ?, NULL)
+    `).run(groupId, cleanName, creatorId, now, now);
+
+    // 2. Add creator as admin member (order_index = 0)
+    const memberId = crypto.randomUUID();
+    db.prepare(`
+      INSERT INTO group_members (id, group_id, user_id, role, temporary_name, order_index, joined_at, status)
+      VALUES (?, ?, ?, 'admin', NULL, 0, ?, 'active')
+    `).run(memberId, groupId, creatorId, now);
+
+    // 3. Create initial group cycle #1
+    const cycleId = crypto.randomUUID();
+    db.prepare(`
+      INSERT INTO group_cycles (id, group_id, cycle_number, status, created_at)
+      VALUES (?, ?, 1, 'active', ?)
+    `).run(cycleId, groupId, now);
+  });
+
+  createTx();
+
+  // Send invitations to requested usernames
+  const invitedResults = [];
+  if (Array.isArray(invitedUsernames)) {
+    for (const uname of invitedUsernames) {
+      if (uname) {
+        try {
+          const invite = await sendInvitation(groupId, creatorId, uname);
+          invitedResults.push(invite);
+        } catch (err) {
+          console.warn(`[Spendly Group] Could not invite ${uname}:`, err.message);
+        }
+      }
+    }
+  }
+
+  return getGroupDetails(groupId, creatorId);
+}
+
+/**
+ * Send an invitation to join a group
+ */
+async function sendInvitation(groupId, inviterId, inviteeUsername) {
+  const member = getMemberRole(groupId, inviterId);
+  if (!member) {
+    throw new Error('You are not a member of this group.');
+  }
+  if (member.role !== 'admin') {
+    throw new Error('Only the group admin can invite new members.');
+  }
+
+  // Check membership change restrictions (Section 43)
+  assertMembershipChangesAllowed(groupId);
+
+  // Check 50-member limit (Section 25)
+  const currentMembersCount = db.prepare(`
+    SELECT COUNT(*) as count FROM group_members WHERE group_id = ? AND status = 'active'
+  `).get(groupId).count;
+
+  if (currentMembersCount >= config.MAX_GROUP_MEMBERS) {
+    throw new Error(`Group has reached the maximum capacity of ${config.MAX_GROUP_MEMBERS} members.`);
+  }
+
+  const cleanUsername = inviteeUsername.trim().toLowerCase();
+  const invitee = db.prepare('SELECT id, username, display_name FROM users WHERE username = ? COLLATE NOCASE').get(cleanUsername);
+  if (!invitee) {
+    throw new Error(`No user found with username "${inviteeUsername}".`);
+  }
+
+  if (invitee.id === inviterId) {
+    throw new Error('You cannot invite yourself.');
+  }
+
+  // Check if already an active member
+  const alreadyMember = db.prepare(`
+    SELECT id FROM group_members WHERE group_id = ? AND user_id = ? AND status = 'active'
+  `).get(groupId, invitee.id);
+  if (alreadyMember) {
+    throw new Error(`@${cleanUsername} is already a member of this group.`);
+  }
+
+  // Check if pending invitation already exists
+  const existingInvite = db.prepare(`
+    SELECT id FROM group_invitations 
+    WHERE group_id = ? AND invitee_id = ? AND status = 'pending'
+  `).get(groupId, invitee.id);
+  if (existingInvite) {
+    throw new Error(`An invitation is already pending for @${cleanUsername}.`);
+  }
+
+  const inviteId = crypto.randomUUID();
+  const now = Date.now();
+
+  db.prepare(`
+    INSERT INTO group_invitations (id, group_id, inviter_id, invitee_id, status, created_at)
+    VALUES (?, ?, ?, ?, 'pending', ?)
+  `).run(inviteId, groupId, inviterId, invitee.id, now);
+
+  const group = db.prepare('SELECT name FROM groups WHERE id = ?').get(groupId);
+  const inviter = db.prepare('SELECT username, display_name FROM users WHERE id = ?').get(inviterId);
+
+  // Send in-app notification with Accept/Decline action
+  await notificationService.createNotification(invitee.id, {
+    type: 'group_invitation',
+    title: 'Group Invitation',
+    message: `${inviter.display_name || inviter.username} invited you to join "${group.name}".`,
+    data: {
+      invitationId: inviteId,
+      groupId,
+      groupName: group.name,
+      inviterName: inviter.display_name || inviter.username
+    }
+  });
+
+  return { success: true, invitationId: inviteId, invitee: invitee.username };
+}
+
+/**
+ * Respond to a group invitation (Accept / Decline)
+ */
+async function respondToInvitation(inviteeId, invitationId, accept) {
+  const invite = db.prepare(`
+    SELECT gi.*, g.name as group_name, g.admin_id, u.username as inviter_username
+    FROM group_invitations gi
+    JOIN groups g ON g.id = gi.group_id
+    JOIN users u ON u.id = gi.inviter_id
+    WHERE gi.id = ? AND gi.invitee_id = ? AND gi.status = 'pending'
+  `).get(invitationId, inviteeId);
+
+  if (!invite) {
+    throw new Error('Invitation not found or has already been responded to.');
+  }
+
+  const now = Date.now();
+  const status = accept ? 'accepted' : 'declined';
+
+  if (!accept) {
+    db.prepare(`
+      UPDATE group_invitations 
+      SET status = 'declined', responded_at = ? 
+      WHERE id = ?
+    `).run(now, invitationId);
+
+    const responder = db.prepare('SELECT username, display_name FROM users WHERE id = ?').get(inviteeId);
+    await notificationService.createNotification(invite.inviter_id, {
+      type: 'invitation_declined',
+      title: 'Invitation Declined',
+      message: `${responder.display_name || responder.username} declined your invitation to join "${invite.group_name}".`,
+      data: { groupId: invite.group_id }
+    });
+
+    return { success: true, status: 'declined' };
+  }
+
+  // If accepting, check capacity again
+  const currentMembersCount = db.prepare(`
+    SELECT COUNT(*) as count FROM group_members WHERE group_id = ? AND status = 'active'
+  `).get(invite.group_id).count;
+
+  if (currentMembersCount >= config.MAX_GROUP_MEMBERS) {
+    throw new Error('This group is currently at full capacity (50 members).');
+  }
+
+  // Get max order_index to preserve member-addition ordering for admin succession
+  const maxOrder = db.prepare(`
+    SELECT COALESCE(MAX(order_index), 0) as max_order FROM group_members WHERE group_id = ?
+  `).get(invite.group_id).max_order;
+
+  const joinTx = db.transaction(() => {
+    // Update invitation status
+    db.prepare(`
+      UPDATE group_invitations 
+      SET status = 'accepted', responded_at = ? 
+      WHERE id = ?
+    `).run(now, invitationId);
+
+    // Check if member was previously in group
+    const prevMember = db.prepare('SELECT id FROM group_members WHERE group_id = ? AND user_id = ?').get(invite.group_id, inviteeId);
+    if (prevMember) {
+      db.prepare(`
+        UPDATE group_members 
+        SET status = 'active', role = 'member', order_index = ?, joined_at = ?
+        WHERE id = ?
+      `).run(maxOrder + 1, now, prevMember.id);
+    } else {
+      const memberId = crypto.randomUUID();
+      db.prepare(`
+        INSERT INTO group_members (id, group_id, user_id, role, temporary_name, order_index, joined_at, status)
+        VALUES (?, ?, ?, 'member', NULL, ?, ?, 'active')
+      `).run(memberId, invite.group_id, inviteeId, maxOrder + 1, now);
+    }
+  });
+
+  joinTx();
+
+  const responder = db.prepare('SELECT username, display_name FROM users WHERE id = ?').get(inviteeId);
+
+  // Notify admin that user joined
+  await notificationService.createNotification(invite.admin_id, {
+    type: 'invitation_accepted',
+    title: 'New Member Joined',
+    message: `${responder.display_name || responder.username} joined "${invite.group_name}".`,
+    data: { groupId: invite.group_id, userId: inviteeId }
+  });
+
+  // Broadcast to group in real-time
+  websocketService.broadcastToGroup(invite.group_id, 'member_joined', {
+    groupId: invite.group_id,
+    user: {
+      id: inviteeId,
+      username: responder.username,
+      displayName: responder.display_name
+    }
+  });
+
+  return { success: true, status: 'accepted', groupId: invite.group_id };
+}
+
+/**
+ * Assign temporary name to a group member (Admin only, Section 28)
+ */
+function setMemberTemporaryName(adminId, groupId, targetUserId, temporaryName) {
+  const adminMember = getMemberRole(groupId, adminId);
+  if (!adminMember || adminMember.role !== 'admin') {
+    throw new Error('Only the group admin can assign temporary names.');
+  }
+
+  const cleanTempName = temporaryName && temporaryName.trim() ? temporaryName.trim() : null;
+
+  db.prepare(`
+    UPDATE group_members 
+    SET temporary_name = ? 
+    WHERE group_id = ? AND user_id = ?
+  `).run(cleanTempName, groupId, targetUserId);
+
+  websocketService.broadcastToGroup(groupId, 'member_updated', {
+    userId: targetUserId,
+    temporaryName: cleanTempName
+  });
+
+  return { success: true, temporaryName: cleanTempName };
+}
+
+/**
+ * Remove a member from the group (Admin only, ONLY AFTER BILLING, Section 46)
+ */
+async function removeMember(adminId, groupId, targetUserId) {
+  const adminMember = getMemberRole(groupId, adminId);
+  if (!adminMember || adminMember.role !== 'admin') {
+    throw new Error('Only the group admin can remove members.');
+  }
+
+  if (targetUserId === adminId) {
+    throw new Error('Admin cannot remove themselves. Use leave group or delete group.');
+  }
+
+  // Must be after billing
+  assertMembershipChangesAllowed(groupId);
+
+  db.prepare(`
+    UPDATE group_members 
+    SET status = 'removed' 
+    WHERE group_id = ? AND user_id = ?
+  `).run(groupId, targetUserId);
+
+  const group = db.prepare('SELECT name FROM groups WHERE id = ?').get(groupId);
+
+  await notificationService.createNotification(targetUserId, {
+    type: 'member_removed',
+    title: 'Removed from Group',
+    message: `You were removed from "${group.name}".`,
+    data: { groupId }
+  });
+
+  websocketService.broadcastToGroup(groupId, 'member_removed', {
+    groupId,
+    userId: targetUserId
+  });
+
+  return { success: true };
+}
+
+/**
+ * Member requests to leave group (Section 45)
+ */
+async function requestLeaveGroup(userId, groupId) {
+  const member = getMemberRole(groupId, userId);
+  if (!member) {
+    throw new Error('You are not a member of this group.');
+  }
+
+  if (member.role === 'admin') {
+    // If admin wants to leave, handle admin departure / succession
+    return await handleAdminLeave(userId, groupId);
+  }
+
+  const now = Date.now();
+  db.prepare(`
+    UPDATE group_members 
+    SET leave_requested_at = ? 
+    WHERE group_id = ? AND user_id = ?
+  `).run(now, groupId, userId);
+
+  const user = db.prepare('SELECT username, display_name FROM users WHERE id = ?').get(userId);
+  const group = db.prepare('SELECT admin_id, name FROM groups WHERE id = ?').get(groupId);
+
+  await notificationService.createNotification(group.admin_id, {
+    type: 'leave_requested',
+    title: 'Member Requested to Leave',
+    message: `${user.display_name || user.username} has requested to leave "${group.name}". You can approve after billing is complete.`,
+    data: { groupId, userId }
+  });
+
+  websocketService.broadcastToGroup(groupId, 'leave_requested', {
+    groupId,
+    userId
+  });
+
+  return { success: true, message: 'Leave request submitted to group admin.' };
+}
+
+/**
+ * Admin approves leave request (ONLY AFTER BILLING, Section 45)
+ */
+async function approveLeaveRequest(adminId, groupId, targetUserId) {
+  const adminMember = getMemberRole(groupId, adminId);
+  if (!adminMember || adminMember.role !== 'admin') {
+    throw new Error('Only the group admin can approve leave requests.');
+  }
+
+  assertMembershipChangesAllowed(groupId);
+
+  db.prepare(`
+    UPDATE group_members 
+    SET status = 'left', leave_requested_at = NULL 
+    WHERE group_id = ? AND user_id = ?
+  `).run(groupId, targetUserId);
+
+  const group = db.prepare('SELECT name FROM groups WHERE id = ?').get(groupId);
+
+  await notificationService.createNotification(targetUserId, {
+    type: 'leave_approved',
+    title: 'Leave Request Approved',
+    message: `Your request to leave "${group.name}" was approved.`,
+    data: { groupId }
+  });
+
+  websocketService.broadcastToGroup(groupId, 'member_left', {
+    groupId,
+    userId: targetUserId
+  });
+
+  return { success: true };
+}
+
+/**
+ * Handle Admin Leaving: Apply Admin Succession Rule (Section 47)
+ * The first member originally added by that admin becomes the new admin.
+ */
+async function handleAdminLeave(adminId, groupId) {
+  assertMembershipChangesAllowed(groupId);
+
+  // Find the first member originally added by that admin (lowest order_index)
+  const successor = db.prepare(`
+    SELECT user_id FROM group_members 
+    WHERE group_id = ? AND user_id != ? AND status = 'active' 
+    ORDER BY order_index ASC 
+    LIMIT 1
+  `).get(groupId, adminId);
+
+  const group = db.prepare('SELECT name FROM groups WHERE id = ?').get(groupId);
+  const now = Date.now();
+
+  if (successor) {
+    const successorTx = db.transaction(() => {
+      // 1. Promote successor to admin
+      db.prepare('UPDATE groups SET admin_id = ?, updated_at = ? WHERE id = ?').run(successor.user_id, now, groupId);
+      db.prepare("UPDATE group_members SET role = 'admin' WHERE group_id = ? AND user_id = ?").run(groupId, successor.user_id);
+      // 2. Mark old admin as left
+      db.prepare("UPDATE group_members SET status = 'left' WHERE group_id = ? AND user_id = ?").run(groupId, adminId);
+    });
+    successorTx();
+
+    await notificationService.createNotification(successor.user_id, {
+      type: 'admin_promoted',
+      title: 'Promoted to Group Admin',
+      message: `You are now the admin of "${group.name}" following the previous admin's departure.`,
+      data: { groupId }
+    });
+
+    websocketService.broadcastToGroup(groupId, 'admin_changed', {
+      groupId,
+      newAdminId: successor.user_id,
+      oldAdminId: adminId
+    });
+
+    return { success: true, newAdminId: successor.user_id };
+  } else {
+    // No other members; mark group as deleted
+    db.prepare('UPDATE groups SET deleted_at = ?, updated_at = ? WHERE id = ?').run(now, now, groupId);
+    db.prepare("UPDATE group_members SET status = 'left' WHERE group_id = ? AND user_id = ?").run(groupId, adminId);
+
+    return { success: true, groupClosed: true };
+  }
+}
+
+/**
+ * Delete group (Admin only, ONLY AFTER BILLING, Section 48)
+ * Preserves historical bills
+ */
+async function deleteGroup(adminId, groupId) {
+  const member = getMemberRole(groupId, adminId);
+  if (!member || member.role !== 'admin') {
+    throw new Error('Only the group admin can delete the group.');
+  }
+
+  assertMembershipChangesAllowed(groupId);
+
+  const now = Date.now();
+  db.prepare(`
+    UPDATE groups 
+    SET deleted_at = ?, updated_at = ? 
+    WHERE id = ?
+  `).run(now, now, groupId);
+
+  websocketService.broadcastToGroup(groupId, 'group_deleted', { groupId });
+
+  return { success: true, message: 'Group deleted successfully.' };
+}
+
+/**
+ * Add Group Expense (Concurrency-safe, idempotent, Section 30-33)
+ */
+function addGroupExpense(userId, groupId, { description, amount, idempotencyKey = null }) {
+  const member = getMemberRole(groupId, userId);
+  if (!member) {
+    throw new Error('You are not an active member of this group.');
+  }
+
+  const activeCycle = getActiveGroupCycle(groupId);
+  if (!activeCycle) {
+    throw new Error('This cycle is already billed. Admin must start a new cycle to add expenses.');
+  }
+
+  if (!description || !description.trim()) {
+    throw new Error('Description is required.');
+  }
+
+  const amountPaise = toPaise(amount);
+  if (amountPaise <= 0) {
+    throw new Error('Amount must be greater than zero.');
+  }
+
+  // Idempotency check
+  if (idempotencyKey) {
+    const existing = db.prepare('SELECT * FROM group_expenses WHERE idempotency_key = ?').get(idempotencyKey);
+    if (existing) return existing;
+  }
+
+  const id = crypto.randomUUID();
+  const now = Date.now();
+
+  db.prepare(`
+    INSERT INTO group_expenses (id, group_id, cycle_id, user_id, description, amount, idempotency_key, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, groupId, activeCycle.id, userId, description.trim(), amountPaise, idempotencyKey, now);
+
+  const expense = db.prepare(`
+    SELECT ge.*, u.username, u.display_name, gm.temporary_name
+    FROM group_expenses ge
+    JOIN users u ON u.id = ge.user_id
+    JOIN group_members gm ON gm.group_id = ge.group_id AND gm.user_id = ge.user_id
+    WHERE ge.id = ?
+  `).get(id);
+
+  // Broadcast to all members of the group in real-time
+  websocketService.broadcastToGroup(groupId, 'expense_added', {
+    groupId,
+    expense
+  });
+
+  return expense;
+}
+
+/**
+ * Edit Group Expense (Only own expense, active cycle, Section 31)
+ */
+function updateGroupExpense(userId, groupId, expenseId, { description, amount }) {
+  const member = getMemberRole(groupId, userId);
+  if (!member) throw new Error('Not an active member.');
+
+  const expense = db.prepare(`
+    SELECT ge.*, gc.status as cycle_status
+    FROM group_expenses ge
+    JOIN group_cycles gc ON gc.id = ge.cycle_id
+    WHERE ge.id = ? AND ge.group_id = ?
+  `).get(expenseId, groupId);
+
+  if (!expense) throw new Error('Expense entry not found.');
+
+  if (expense.user_id !== userId) {
+    throw new Error('You can only edit your own expenses.');
+  }
+
+  if (expense.cycle_status !== 'active') {
+    throw new Error('Cannot edit an expense from a billed cycle.');
+  }
+
+  const updates = [];
+  const params = [];
+
+  if (description && description.trim()) {
+    updates.push('description = ?');
+    params.push(description.trim());
+  }
+
+  if (amount !== undefined && amount !== null) {
+    const amountPaise = toPaise(amount);
+    if (amountPaise <= 0) throw new Error('Amount must be greater than zero.');
+    updates.push('amount = ?');
+    params.push(amountPaise);
+  }
+
+  if (updates.length > 0) {
+    params.push(expenseId);
+    db.prepare(`UPDATE group_expenses SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+  }
+
+  const updated = db.prepare(`
+    SELECT ge.*, u.username, u.display_name, gm.temporary_name
+    FROM group_expenses ge
+    JOIN users u ON u.id = ge.user_id
+    JOIN group_members gm ON gm.group_id = ge.group_id AND gm.user_id = ge.user_id
+    WHERE ge.id = ?
+  `).get(expenseId);
+
+  websocketService.broadcastToGroup(groupId, 'expense_updated', {
+    groupId,
+    expense: updated
+  });
+
+  return updated;
+}
+
+/**
+ * Delete Group Expense (Only own expense, active cycle, Section 31)
+ */
+function deleteGroupExpense(userId, groupId, expenseId) {
+  const member = getMemberRole(groupId, userId);
+  if (!member) throw new Error('Not an active member.');
+
+  const expense = db.prepare(`
+    SELECT ge.*, gc.status as cycle_status
+    FROM group_expenses ge
+    JOIN group_cycles gc ON gc.id = ge.cycle_id
+    WHERE ge.id = ? AND ge.group_id = ?
+  `).get(expenseId, groupId);
+
+  if (!expense) throw new Error('Expense entry not found.');
+
+  if (expense.user_id !== userId) {
+    throw new Error('You can only delete your own expenses.');
+  }
+
+  if (expense.cycle_status !== 'active') {
+    throw new Error('Cannot delete an expense from a billed cycle.');
+  }
+
+  db.prepare('DELETE FROM group_expenses WHERE id = ?').run(expenseId);
+
+  websocketService.broadcastToGroup(groupId, 'expense_deleted', {
+    groupId,
+    expenseId
+  });
+
+  return { success: true };
+}
+
+/**
+ * Group Billing: Atomic generation of group bill & settlements (Sections 34 - 41)
+ * Admin only, locked atomically, exactly one bill per cycle
+ */
+async function generateGroupBill(adminId, groupId) {
+  const adminMember = getMemberRole(groupId, adminId);
+  if (!adminMember || adminMember.role !== 'admin') {
+    throw new Error('Only the group admin can generate billing for this group.');
+  }
+
+  const activeCycle = getActiveGroupCycle(groupId);
+  if (!activeCycle) {
+    throw new Error('No active cycle found to bill.');
+  }
+
+  // Check if bill already exists (idempotency guard)
+  const existingBill = db.prepare('SELECT * FROM group_bills WHERE cycle_id = ?').get(activeCycle.id);
+  if (existingBill) {
+    return {
+      bill: existingBill,
+      snapshot: JSON.parse(existingBill.bill_snapshot_json)
+    };
+  }
+
+  const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(groupId);
+
+  // Get all active members for this cycle with frozen snapshot attributes
+  const members = db.prepare(`
+    SELECT gm.user_id, gm.role, gm.temporary_name, gm.order_index,
+           u.username, u.display_name, u.avatar_url
+    FROM group_members gm
+    JOIN users u ON u.id = gm.user_id
+    WHERE gm.group_id = ? AND gm.status = 'active'
+    ORDER BY gm.order_index ASC
+  `).all(groupId);
+
+  if (members.length === 0) {
+    throw new Error('Group has no active members.');
+  }
+
+  // Get all expenses in this cycle
+  const expenses = db.prepare(`
+    SELECT * FROM group_expenses 
+    WHERE cycle_id = ? 
+    ORDER BY created_at ASC
+  `).all(activeCycle.id);
+
+  // Group expenses by member
+  const spentByMember = new Map();
+  members.forEach(m => spentByMember.set(m.user_id, 0));
+  expenses.forEach(e => {
+    spentByMember.set(e.user_id, (spentByMember.get(e.user_id) || 0) + e.amount);
+  });
+
+  // Prepare input for settlement algorithm
+  const settlementMembersInput = members.map(m => ({
+    userId: m.user_id,
+    username: m.username,
+    displayName: m.temporary_name || m.display_name || m.username,
+    spent: spentByMember.get(m.user_id) || 0
+  }));
+
+  // Run deterministic settlement calculation
+  const settlementCalc = settlementService.calculateSettlements(settlementMembersInput);
+
+  const now = Date.now();
+  const billId = crypto.randomUUID();
+
+  // Prepare immutable snapshot
+  const snapshot = {
+    billId,
+    groupId,
+    groupName: group.name,
+    cycleId: activeCycle.id,
+    cycleNumber: activeCycle.cycle_number,
+    billedAt: now,
+    memberCount: members.length,
+    totalSpent: settlementCalc.totalSpent,
+    equalShare: settlementCalc.equalShare,
+    members: members.map(m => ({
+      userId: m.user_id,
+      role: m.role,
+      username: m.username,
+      displayName: m.display_name,
+      temporaryName: m.temporary_name,
+      avatarUrl: m.avatar_url,
+      spent: spentByMember.get(m.user_id) || 0,
+      share: settlementCalc.balances.find(b => b.userId === m.user_id)?.share || 0,
+      balance: settlementCalc.balances.find(b => b.userId === m.user_id)?.balance || 0
+    })),
+    settlements: settlementCalc.settlements,
+    expenseCount: expenses.length
+  };
+
+  const snapshotJson = JSON.stringify(snapshot);
+
+  // Atomic transaction: lock cycle, save bill, insert individual settlements
+  const billingTx = db.transaction(() => {
+    // 1. Lock cycle
+    db.prepare(`
+      UPDATE group_cycles 
+      SET status = 'billed', billed_at = ? 
+      WHERE id = ? AND status = 'active'
+    `).run(now, activeCycle.id);
+
+    // 2. Insert group bill
+    db.prepare(`
+      INSERT INTO group_bills (
+        id, group_id, cycle_id, cycle_number, group_name,
+        total_spent, member_count, equal_share, bill_snapshot_json, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      billId, groupId, activeCycle.id, activeCycle.cycle_number, group.name,
+      settlementCalc.totalSpent, members.length, settlementCalc.equalShare, snapshotJson, now
+    );
+
+    // 3. Insert individual settlement records with status 'pending'
+    for (const s of settlementCalc.settlements) {
+      const sId = crypto.randomUUID();
+      db.prepare(`
+        INSERT INTO settlements (id, bill_id, group_id, payer_id, receiver_id, amount, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
+      `).run(sId, billId, groupId, s.payerId, s.receiverId, s.amount, now);
+    }
+  });
+
+  billingTx();
+
+  // Notify members that billing was generated
+  for (const m of members) {
+    await notificationService.createNotification(m.user_id, {
+      type: 'group_billed',
+      title: 'Group Cycle Billed',
+      message: `Billing generated for cycle #${activeCycle.cycle_number} of "${group.name}". Check your settlements.`,
+      data: { groupId, billId, cycleNumber: activeCycle.cycle_number }
+    });
+  }
+
+  // Broadcast billing event to group in real-time
+  websocketService.broadcastToGroup(groupId, 'group_billed', {
+    groupId,
+    billId,
+    cycleNumber: activeCycle.cycle_number
+  });
+
+  const savedBill = db.prepare('SELECT * FROM group_bills WHERE id = ?').get(billId);
+
+  return {
+    bill: savedBill,
+    snapshot
+  };
+}
+
+/**
+ * Start a New Group Cycle (Admin only, Section 42)
+ */
+async function startNewGroupCycle(adminId, groupId) {
+  const adminMember = getMemberRole(groupId, adminId);
+  if (!adminMember || adminMember.role !== 'admin') {
+    throw new Error('Only the group admin can start a new billing cycle.');
+  }
+
+  const activeCycle = getActiveGroupCycle(groupId);
+  if (activeCycle) {
+    throw new Error('An active cycle is already in progress. Complete billing before starting a new cycle.');
+  }
+
+  const lastCycle = getLatestGroupCycle(groupId);
+  const nextCycleNumber = lastCycle ? lastCycle.cycle_number + 1 : 1;
+  const newCycleId = crypto.randomUUID();
+  const now = Date.now();
+
+  db.prepare(`
+    INSERT INTO group_cycles (id, group_id, cycle_number, status, created_at)
+    VALUES (?, ?, ?, 'active', ?)
+  `).run(newCycleId, groupId, nextCycleNumber, now);
+
+  const group = db.prepare('SELECT name FROM groups WHERE id = ?').get(groupId);
+
+  // Notify members
+  const members = db.prepare(`SELECT user_id FROM group_members WHERE group_id = ? AND status = 'active'`).all(groupId);
+  for (const m of members) {
+    await notificationService.createNotification(m.user_id, {
+      type: 'new_cycle_started',
+      title: 'New Cycle Started',
+      message: `A fresh billing cycle (#${nextCycleNumber}) has started for "${group.name}". You can now add new expenses.`,
+      data: { groupId, cycleNumber: nextCycleNumber }
+    });
+  }
+
+  websocketService.broadcastToGroup(groupId, 'new_cycle_started', {
+    groupId,
+    cycleNumber: nextCycleNumber
+  });
+
+  return getGroupDetails(groupId, adminId);
+}
+
+/**
+ * Get detailed group view for a member:
+ * Active cycle expenses, live balances, members, settlements, and roles
+ */
+function getGroupDetails(groupId, userId) {
+  const member = getMemberRole(groupId, userId);
+  if (!member) {
+    throw new Error('Group not found or you are not a member.');
+  }
+
+  const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(groupId);
+  const activeCycle = getActiveGroupCycle(groupId);
+  const latestCycle = getLatestGroupCycle(groupId);
+
+  // Get active members with profile info
+  const members = db.prepare(`
+    SELECT gm.id as membership_id, gm.user_id, gm.role, gm.temporary_name, gm.order_index, gm.joined_at, gm.leave_requested_at,
+           u.username, u.display_name, u.avatar_url
+    FROM group_members gm
+    JOIN users u ON u.id = gm.user_id
+    WHERE gm.group_id = ? AND gm.status = 'active'
+    ORDER BY gm.order_index ASC
+  `).all(groupId);
+
+  // Get expenses in the current cycle
+  const currentCycleId = activeCycle ? activeCycle.id : (latestCycle ? latestCycle.id : null);
+  let expenses = [];
+  if (currentCycleId) {
+    expenses = db.prepare(`
+      SELECT ge.*, u.username, u.display_name, gm.temporary_name, u.avatar_url
+      FROM group_expenses ge
+      JOIN users u ON u.id = ge.user_id
+      JOIN group_members gm ON gm.group_id = ge.group_id AND gm.user_id = ge.user_id
+      WHERE ge.cycle_id = ?
+      ORDER BY ge.created_at DESC
+    `).all(currentCycleId);
+  }
+
+  // Calculate live totals and balances for current cycle
+  const spentByMember = new Map();
+  members.forEach(m => spentByMember.set(m.user_id, 0));
+  expenses.forEach(e => {
+    spentByMember.set(e.user_id, (spentByMember.get(e.user_id) || 0) + e.amount);
+  });
+
+  const settlementMembersInput = members.map(m => ({
+    userId: m.user_id,
+    username: m.username,
+    displayName: m.temporary_name || m.display_name || m.username,
+    spent: spentByMember.get(m.user_id) || 0
+  }));
+
+  const liveCalculations = settlementService.calculateSettlements(settlementMembersInput);
+
+  // If latest cycle is billed, fetch latest bill and its settlements
+  let latestBill = null;
+  let activeSettlements = [];
+  if (latestCycle && latestCycle.status === 'billed') {
+    latestBill = db.prepare('SELECT * FROM group_bills WHERE cycle_id = ?').get(latestCycle.id);
+    if (latestBill) {
+      activeSettlements = db.prepare(`
+        SELECT s.*, 
+               pu.username as payer_username, pu.display_name as payer_name,
+               ru.username as receiver_username, ru.display_name as receiver_name
+        FROM settlements s
+        JOIN users pu ON pu.id = s.payer_id
+        JOIN users ru ON ru.id = s.receiver_id
+        WHERE s.bill_id = ?
+        ORDER BY s.created_at ASC
+      `).all(latestBill.id);
+    }
+  }
+
+  return {
+    group: {
+      id: group.id,
+      name: group.name,
+      adminId: group.admin_id,
+      currentUserRole: member.role,
+      currentUserTemporaryName: member.temporary_name
+    },
+    activeCycle,
+    latestCycle,
+    hasActiveCycle: !!activeCycle,
+    members: members.map(m => ({
+      userId: m.user_id,
+      role: m.role,
+      username: m.username,
+      displayName: m.display_name,
+      temporaryName: m.temporary_name,
+      avatarUrl: m.avatar_url,
+      joinedAt: m.joined_at,
+      leaveRequested: !!m.leave_requested_at,
+      spent: spentByMember.get(m.user_id) || 0,
+      share: liveCalculations.balances.find(b => b.userId === m.user_id)?.share || 0,
+      balance: liveCalculations.balances.find(b => b.userId === m.user_id)?.balance || 0
+    })),
+    expenses,
+    liveTotals: {
+      totalSpent: liveCalculations.totalSpent,
+      equalShare: liveCalculations.equalShare,
+      balances: liveCalculations.balances,
+      suggestedSettlements: liveCalculations.settlements
+    },
+    latestBill,
+    activeSettlements
+  };
+}
+
+/**
+ * List all groups for a user
+ */
+function getUserGroups(userId) {
+  const groups = db.prepare(`
+    SELECT g.id, g.name, g.admin_id, gm.role, gm.temporary_name, gm.joined_at,
+           (SELECT COUNT(*) FROM group_members WHERE group_id = g.id AND status = 'active') as member_count,
+           (SELECT status FROM group_cycles WHERE group_id = g.id ORDER BY cycle_number DESC LIMIT 1) as cycle_status,
+           (SELECT cycle_number FROM group_cycles WHERE group_id = g.id ORDER BY cycle_number DESC LIMIT 1) as current_cycle_number
+    FROM group_members gm
+    JOIN groups g ON g.id = gm.group_id
+    WHERE gm.user_id = ? AND gm.status = 'active' AND g.deleted_at IS NULL
+    ORDER BY g.updated_at DESC
+  `).all(userId);
+
+  return groups;
+}
+
+module.exports = {
+  createGroup,
+  sendInvitation,
+  respondToInvitation,
+  setMemberTemporaryName,
+  removeMember,
+  requestLeaveGroup,
+  approveLeaveRequest,
+  deleteGroup,
+  addGroupExpense,
+  updateGroupExpense,
+  deleteGroupExpense,
+  generateGroupBill,
+  startNewGroupCycle,
+  getGroupDetails,
+  getUserGroups,
+  handleAdminLeave
+};

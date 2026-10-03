@@ -1,0 +1,41 @@
+# ==============================================================================
+# SPENDLY GIT IGNORE
+# ==============================================================================
+
+# Environment Variables & Secrets (CRITICAL: NEVER COMMIT)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dependencies
+node_modules/
+package-lock.json.backup
+
+# SQLite Database & Write-Ahead Logs
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+server/spendly.db*
+spendly.db*
+
+# User Uploaded Avatars
+uploads/avatars/*
+!uploads/avatars/.gitkeep
+
+# Temporary Scratch Files & Test Scripts
+scratch/
+test-results/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Operating System & IDE Configs
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.system_generated/
