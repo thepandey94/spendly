@@ -372,7 +372,7 @@
   transition: all var(--transition-fast);
 }
 .add-entry-table-btn:hover {
-  background: rgba(79, 70, 229, 0.15);
+  background: rgba(15, 157, 154, 0.12);
 }
 
 .col-remaining-cell {
@@ -544,7 +544,7 @@
   border-right: none;
 }
 .split-it-table td.is-me {
-  background: rgba(79, 70, 229, 0.02);
+  background: rgba(15, 157, 154, 0.02);
 }
 
 .member-th-header {
@@ -666,7 +666,7 @@
   transition: all var(--transition-fast);
 }
 .add-group-expense-col-btn:hover {
-  background: rgba(79, 70, 229, 0.15);
+  background: rgba(15, 157, 154, 0.12);
 }
 
 /* Leave Request Admin Notice Banner */

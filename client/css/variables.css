@@ -1,68 +1,71 @@
 :root {
   /* ==========================================================================
      Spendly Modern Light-First Financial Design System
-     Clean, energetic, trustworthy, friendly, and professional.
+     Clean, trustworthy, financial, fresh, and professional.
+     Official Brand Palette: Teal (#0F9D9A), Deep Navy (#075985), Sky (#38BDF8)
      ========================================================================== */
 
-  /* Page & Surface Backgrounds */
-  --bg-app: #f8fafc;           /* Crisp, clean slate-50 background */
-  --bg-primary: #ffffff;       /* Pure white primary surface */
-  --bg-secondary: #f1f5f9;     /* Light slate-100 for secondary elements */
-  --bg-card: #ffffff;          /* Pure white card surface */
-  --bg-card-hover: #f8fafc;    /* Very subtle hover */
-  --bg-card-alt: #f8fafc;      /* Subtle tinted card headers / footers */
+  /* Page & Surface Backgrounds (80-90% light neutral/white surfaces) */
+  --bg-app: #F4F9FC;           /* Crisp, clean Page Background */
+  --bg-primary: #FFFFFF;       /* Pure white primary surface */
+  --bg-secondary: #EDF5F9;     /* Light blue-grey tint for secondary elements */
+  --bg-card: #FFFFFF;          /* Pure white card surface */
+  --bg-card-hover: #F4F9FC;    /* Subtle card hover */
+  --bg-card-alt: #F8FAFC;      /* Subtle tinted card headers / footers */
 
   /* Glassmorphism & Header */
-  --glass-bg: rgba(255, 255, 255, 0.92);
-  --glass-border: #e2e8f0;
-  --glass-border-focus: rgba(79, 70, 229, 0.35);
+  --glass-bg: rgba(255, 255, 255, 0.94);
+  --glass-border: #DCE7EF;
+  --glass-border-focus: rgba(15, 157, 154, 0.35);
   --glass-blur: blur(16px);
 
-  /* Primary Accent - Indigo / Modern Financial Family */
-  --accent-primary: #4f46e5;
-  --accent-primary-hover: #4338ca;
-  --accent-primary-glow: rgba(79, 70, 229, 0.18);
-  --accent-primary-subtle: rgba(79, 70, 229, 0.08);
+  /* Primary Accent - Primary Teal (#0F9D9A) & Deep Brand Navy (#075985) */
+  --accent-primary: #0F9D9A;
+  --accent-primary-hover: #075985;
+  --accent-primary-glow: rgba(15, 157, 154, 0.20);
+  --accent-primary-subtle: rgba(15, 157, 154, 0.08);
 
-  /* Secondary Accent - Vibrant Sky Blue */
-  --accent-secondary: #0284c7;
-  --accent-secondary-hover: #0369a1;
-  --accent-secondary-glow: rgba(2, 132, 199, 0.18);
-  --accent-secondary-subtle: rgba(2, 132, 199, 0.08);
+  /* Secondary Accent - Deep Brand Navy (#075985) */
+  --accent-secondary: #075985;
+  --accent-secondary-hover: #0369A1;
+  --accent-secondary-glow: rgba(7, 89, 133, 0.18);
+  --accent-secondary-subtle: rgba(7, 89, 133, 0.08);
 
-  /* Success Accent - Pleasant Emerald for Positive Balances & Settlements */
-  --accent-success: #10b981;
+  /* Sky Accent (#38BDF8) - Neutral / Equal-Share Information & Highlights */
+  --accent-sky: #38BDF8;
+  --accent-sky-subtle: rgba(56, 189, 248, 0.12);
+  --accent-cyan: #38BDF8;
+  --accent-cyan-subtle: rgba(56, 189, 248, 0.12);
+
+  /* Success Accent - #10B981 for Positive / Remaining Balances & Confirmation */
+  --accent-success: #10B981;
   --accent-success-hover: #059669;
-  --accent-success-subtle: rgba(16, 185, 129, 0.1);
+  --accent-success-subtle: rgba(16, 185, 129, 0.10);
 
-  /* Danger Accent - Soft Crimson Red for Overspent, Deletion & Errors */
-  --accent-danger: #ef4444;
-  --accent-danger-hover: #dc2626;
+  /* Danger Accent - #EF4444 for Overspent, Debt, Negative, Deletion & Errors */
+  --accent-danger: #EF4444;
+  --accent-danger-hover: #DC2626;
   --accent-danger-glow: rgba(239, 68, 68, 0.18);
-  --accent-danger-subtle: rgba(239, 68, 68, 0.1);
+  --accent-danger-subtle: rgba(239, 68, 68, 0.10);
 
-  /* Warning Accent - Warm Amber for Pending States & Notices */
-  --accent-warning: #f59e0b;
-  --accent-warning-hover: #d97706;
+  /* Warning Accent - #F59E0B for Pending States, Notices & Cooldowns */
+  --accent-warning: #F59E0B;
+  --accent-warning-hover: #D97706;
   --accent-warning-subtle: rgba(245, 158, 11, 0.12);
 
-  /* Cyan / Info Accent */
-  --accent-cyan: #0284c7;
-  --accent-cyan-subtle: rgba(2, 132, 199, 0.08);
-
-  /* Text & Typography - High Contrast Charcoal Navy & Slate */
-  --text-primary: #0f172a;       /* Slate-900 / Deep charcoal navy */
-  --text-secondary: #475569;     /* Slate-600 / Clear readable subtext */
-  --text-muted: #94a3b8;         /* Slate-400 / Timestamps, placeholders */
-  --text-inverse: #ffffff;       /* Pure white on colored buttons/badges */
+  /* Text & Typography - High Contrast Charcoal Navy (#0F172A) & Slate (#475569) */
+  --text-primary: #0F172A;       /* Primary Text */
+  --text-secondary: #475569;     /* Secondary Text */
+  --text-muted: #94A3B8;         /* Slate-400 / Timestamps, placeholders */
+  --text-inverse: #FFFFFF;       /* Pure white on colored buttons/badges */
 
   --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
-  /* Borders & Radii */
-  --border-subtle: #f1f5f9;      /* Slate-100 */
-  --border-card: #e2e8f0;        /* Slate-200 clean border */
-  --border-strong: #cbd5e1;      /* Slate-300 on hover/focus */
+  /* Borders: Light blue-grey border (#DCE7EF) */
+  --border-subtle: #EDF5F9;
+  --border-card: #DCE7EF;        /* Official Brand Border */
+  --border-strong: #CBD5E1;      /* Hover/focus border */
 
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -70,11 +73,11 @@
   --radius-xl: 18px;
   --radius-full: 9999px;
 
-  /* Shadows - Crisp, Airy, Modern Elevation */
-  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.05);
-  --shadow-md: 0 4px 10px rgba(15, 23, 42, 0.06);
-  --shadow-lg: 0 10px 20px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.03);
-  --shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 10px -4px rgba(15, 23, 42, 0.04);
+  /* Shadows - Crisp, Airy, Modern Subtle Elevation */
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 10px rgba(15, 23, 42, 0.05);
+  --shadow-lg: 0 10px 20px -3px rgba(15, 23, 42, 0.06), 0 4px 6px -2px rgba(15, 23, 42, 0.02);
+  --shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -4px rgba(15, 23, 42, 0.03);
   --shadow-glow: 0 0 16px var(--accent-primary-glow);
 
   /* Layout Dimensions */
