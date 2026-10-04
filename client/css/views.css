@@ -191,6 +191,13 @@
   justify-content: center;
   transition: all var(--transition-fast);
 }
+.action-icon-btn svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+  stroke: currentColor;
+  display: block;
+}
 .action-icon-btn:hover {
   color: var(--text-primary);
   background: var(--bg-primary);

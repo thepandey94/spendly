@@ -291,7 +291,7 @@ const SpendlySplitItView = {
                           </div>
                           ${isAdmin && !isMe ? `
                             <button class="action-icon-btn admin-temp-name-btn" title="Set group temporary name" data-user-id="${m.userId}" data-current="${this.escapeHtml(m.temporaryName || '')}">
-                              <svg viewBox="0 0 24 24" fill="none"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" stroke="currentColor"/></svg>
+                              <svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" stroke="currentColor"/></svg>
                             </button>
                           ` : ''}
                         </div>
@@ -327,10 +327,10 @@ const SpendlySplitItView = {
                               <span class="group-exp-amount">${SpendlyStore.formatINR(e.amount)}</span>
                               ${isMe && hasActiveCycle ? `
                                 <button class="action-icon-btn edit-group-exp-btn" title="Edit Expense" data-exp-id="${e.id}" data-desc="${this.escapeHtml(e.description)}" data-amount="${e.amount / 100}">
-                                  <svg viewBox="0 0 24 24" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor"/></svg>
+                                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor"/></svg>
                                 </button>
                                 <button class="action-icon-btn delete delete-group-exp-btn" title="Delete Expense" data-exp-id="${e.id}">
-                                  <svg viewBox="0 0 24 24" fill="none"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke="currentColor"/></svg>
+                                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke="currentColor"/></svg>
                                 </button>
                               ` : ''}
                             </div>

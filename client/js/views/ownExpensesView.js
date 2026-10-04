@@ -199,10 +199,10 @@ const SpendlyOwnExpensesView = {
             <span class="col-head-name">${this.escapeHtml(head.name)}</span>
             <div class="col-head-actions">
               <button class="action-icon-btn edit-head-btn" title="Edit Expenditure Head" data-head-id="${head.id}" data-name="${this.escapeHtml(head.name)}" data-amount="${head.setAmount / 100}">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor"/></svg>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor"/></svg>
               </button>
               <button class="action-icon-btn delete delete-head-btn" title="Delete Expenditure Head" data-head-id="${head.id}">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke="currentColor"/></svg>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke="currentColor"/></svg>
               </button>
             </div>
           </div>
@@ -229,10 +229,10 @@ const SpendlyOwnExpensesView = {
                 <div class="own-expense-entry-right">
                   <span class="own-expense-entry-amount">${SpendlyStore.formatINR(e.amount)}</span>
                   <button class="action-icon-btn edit-entry-btn" title="Edit Spending Entry" data-entry-id="${e.id}" data-desc="${this.escapeHtml(e.description)}" data-amount="${e.amount / 100}">
-                    <svg viewBox="0 0 24 24" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor"/></svg>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor"/></svg>
                   </button>
                   <button class="action-icon-btn delete delete-entry-btn" title="Delete Spending Entry" data-entry-id="${e.id}">
-                    <svg viewBox="0 0 24 24" fill="none"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke="currentColor"/></svg>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke="currentColor"/></svg>
                   </button>
                 </div>
               </div>
