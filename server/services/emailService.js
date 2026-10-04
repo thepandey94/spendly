@@ -72,7 +72,10 @@ function getTransporter() {
     },
     tls: {
       rejectUnauthorized: true
-    }
+    },
+    connectionTimeout: 5000,
+    greetingTimeout: 5000,
+    socketTimeout: 5000
   });
 
   console.log(`[Spendly EmailService] Configured Brevo SMTP relay (${host}:${port}) with user: ${smtpUser}`);
@@ -255,24 +258,14 @@ async function sendOtp(email, purpose) {
   const sender = getEffectiveSender();
   let messageId = null;
 
+  const hasApiKey = Boolean(config.BREVO_API_KEY && config.BREVO_API_KEY.trim()) || 
+                    Boolean(config.SMTP_PASS && config.SMTP_PASS.startsWith('xkeysib-'));
+
   try {
-    // Attempt 1: Brevo SMTP Relay
-    try {
-      const transporter = getTransporter();
-      const info = await transporter.sendMail({
-        from: sender,
-        to: normalizedEmail,
-        subject,
-        html
-      });
-      messageId = info.messageId;
-      console.log(`[Spendly EmailService] Real Brevo SMTP delivery successful to ${normalizedEmail}! (Message ID: ${messageId})`);
-    } catch (smtpErr) {
-      console.warn(`[Spendly EmailService] Brevo SMTP attempt error: ${smtpErr.message}`);
-      
-      // Attempt 2: If BREVO_API_KEY is configured or SMTP_PASS is a Brevo API key, try Brevo REST API v3
-      if (config.BREVO_API_KEY || (config.SMTP_PASS && config.SMTP_PASS.startsWith('xkeysib-'))) {
-        console.log(`[Spendly EmailService] Falling back to Brevo REST API v3...`);
+    if (hasApiKey) {
+      // Primary Delivery Method: Brevo REST API v3 over HTTPS (Port 443)
+      try {
+        console.log(`[Spendly EmailService] Sending OTP to ${normalizedEmail} via Brevo REST API v3...`);
         const apiInfo = await sendViaBrevoApi({
           to: normalizedEmail,
           subject,
@@ -281,8 +274,54 @@ async function sendOtp(email, purpose) {
         });
         messageId = apiInfo.messageId;
         console.log(`[Spendly EmailService] Real Brevo REST API delivery successful to ${normalizedEmail}! (Message ID: ${messageId})`);
-      } else {
-        throw smtpErr;
+      } catch (apiErr) {
+        console.warn(`[Spendly EmailService] Brevo REST API attempt error: ${apiErr.message}`);
+
+        // Fallback Method: Brevo SMTP Relay (if SMTP credentials are present)
+        if (config.SMTP_USER && config.SMTP_PASS) {
+          console.log(`[Spendly EmailService] Falling back to Brevo SMTP relay...`);
+          const transporter = getTransporter();
+          const info = await transporter.sendMail({
+            from: sender,
+            to: normalizedEmail,
+            subject,
+            html
+          });
+          messageId = info.messageId;
+          console.log(`[Spendly EmailService] Real Brevo SMTP delivery successful to ${normalizedEmail}! (Message ID: ${messageId})`);
+        } else {
+          throw apiErr;
+        }
+      }
+    } else {
+      // Primary Delivery Method: Brevo SMTP Relay
+      try {
+        const transporter = getTransporter();
+        const info = await transporter.sendMail({
+          from: sender,
+          to: normalizedEmail,
+          subject,
+          html
+        });
+        messageId = info.messageId;
+        console.log(`[Spendly EmailService] Real Brevo SMTP delivery successful to ${normalizedEmail}! (Message ID: ${messageId})`);
+      } catch (smtpErr) {
+        console.warn(`[Spendly EmailService] Brevo SMTP attempt error: ${smtpErr.message}`);
+
+        // Fallback Method: Brevo REST API v3 if API key becomes available or SMTP_PASS is an API key
+        if (config.BREVO_API_KEY || (config.SMTP_PASS && config.SMTP_PASS.startsWith('xkeysib-'))) {
+          console.log(`[Spendly EmailService] Falling back to Brevo REST API v3...`);
+          const apiInfo = await sendViaBrevoApi({
+            to: normalizedEmail,
+            subject,
+            html,
+            text: `Your Spendly verification code is: ${otpCode}`
+          });
+          messageId = apiInfo.messageId;
+          console.log(`[Spendly EmailService] Real Brevo REST API delivery successful to ${normalizedEmail}! (Message ID: ${messageId})`);
+        } else {
+          throw smtpErr;
+        }
       }
     }
   } catch (err) {
@@ -292,11 +331,11 @@ async function sendOtp(email, purpose) {
 
     let userMessage = "We couldn't deliver the verification code to your email.";
     if (err.message.includes('not configured')) {
-      userMessage = "Brevo SMTP is not configured. Please set SMTP_USER and SMTP_PASS in .env.";
-    } else if (err.message.includes('unverified sender') || err.message.includes('Sender address rejected')) {
+      userMessage = "Brevo email service is not configured. Please set BREVO_API_KEY or SMTP credentials in .env.";
+    } else if (err.message.includes('unverified sender') || err.message.includes('Sender address rejected') || err.message.includes('sender is not verified')) {
       userMessage = "Email delivery error: The sender address is not verified in Brevo. Please check SMTP_FROM in .env.";
-    } else if (err.message.includes('535') || err.message.includes('Authentication failed')) {
-      userMessage = "Email delivery error: Brevo authentication failed. Please check SMTP_USER and SMTP_PASS in .env.";
+    } else if (err.message.includes('535') || err.message.includes('Authentication failed') || err.message.includes('unauthorized') || err.message.includes('Key not found')) {
+      userMessage = "Email delivery error: Brevo authentication failed. Please check your Brevo credentials in .env.";
     }
     throw new Error(userMessage);
   }
