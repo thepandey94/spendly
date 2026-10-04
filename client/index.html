@@ -8,6 +8,15 @@
   <meta name="theme-color" content="#ffffff" />
   <link rel="manifest" href="/manifest.json" />
 
+  <!-- Progressive Web App (PWA) & iOS Standalone Metadata -->
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Spendly" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+
   <!-- Google Fonts: Outfit (Luxury Headings) and Inter (Crisp Body) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -100,6 +109,12 @@
             <svg viewBox="0 0 24 24" fill="none"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg>
             <span>Analytics</span>
           </a>
+        </li>
+        <li id="sidebar-install-item" style="display: none;">
+          <button class="nav-item-link" id="pwa-install-btn" style="width: 100%; border: none; background: none; text-align: left; cursor: pointer; color: var(--accent-primary);">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"/></svg>
+            <span style="font-weight: 600;">Install Spendly</span>
+          </button>
         </li>
       </ul>
 

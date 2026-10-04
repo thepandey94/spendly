@@ -1,8 +1,14 @@
-const CACHE_NAME = 'spendly-cache-v4';
+const CACHE_NAME = 'spendly-cache-v5';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/icon-maskable-192.png',
+  '/icons/icon-maskable-512.png',
+  '/icons/apple-touch-icon.png',
+  '/icons/badge.png',
   '/css/variables.css',
   '/css/main.css',
   '/css/components.css',

@@ -19,6 +19,9 @@ const SpendlyApp = {
 
     // Initialize SPA Router
     SpendlyRouter.init();
+
+    // Setup PWA Installation Prompt Listener
+    this.setupPwaInstall();
   },
 
   registerServiceWorker() {
@@ -28,6 +31,57 @@ const SpendlyApp = {
       }).catch((err) => {
         console.warn('[Spendly SW] Registration failed:', err);
       });
+    }
+  },
+
+  setupPwaInstall() {
+    let deferredPrompt = null;
+    const installItem = document.getElementById('sidebar-install-item');
+    const installBtn = document.getElementById('pwa-install-btn');
+
+    // Capture standard PWA installation prompt (Chrome Android, Desktop Chrome, Edge)
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      if (installItem) {
+        installItem.style.display = 'block';
+      }
+    });
+
+    if (installBtn) {
+      installBtn.addEventListener('click', async () => {
+        if (!deferredPrompt) {
+          // iOS Safari Add to Home Screen guidance
+          const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+          if (isIos) {
+            SpendlyApp.showToast({
+              type: 'info',
+              title: 'Install on iOS',
+              message: 'Tap the Share icon at the bottom of Safari and select "Add to Home Screen".'
+            });
+          }
+          return;
+        }
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          if (installItem) installItem.style.display = 'none';
+        }
+        deferredPrompt = null;
+      });
+    }
+
+    window.addEventListener('appinstalled', () => {
+      if (installItem) installItem.style.display = 'none';
+      deferredPrompt = null;
+      console.log('[Spendly PWA] App was successfully installed to home screen');
+    });
+
+    // On iOS Safari outside standalone mode, show install helper
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    if (isIos && !isStandalone && installItem) {
+      installItem.style.display = 'block';
     }
   },
 
