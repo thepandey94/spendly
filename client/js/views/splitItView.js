@@ -262,6 +262,7 @@ const SpendlySplitItView = {
 
       <!-- Member Expense Columns Table (Part 9) - Exactly N Columns for N Members -->
       <div class="split-it-table-card">
+        <div class="mobile-scroll-cue">↔ Swipe horizontally to view all member columns</div>
         <div class="split-it-table-container">
           <table class="split-it-table" style="min-width: ${Math.max(680, members.length * 240)}px;">
             <thead>

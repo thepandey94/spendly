@@ -127,6 +127,7 @@ const SpendlyOwnExpensesView = {
         </div>
       ` : `
         <div class="own-expenses-table-card">
+          <div class="mobile-scroll-cue">↔ Swipe horizontally to view all columns</div>
           <div class="own-expenses-table-wrapper">
             <table class="own-expenses-table">
               <thead>

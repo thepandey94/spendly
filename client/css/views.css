@@ -1,4 +1,6 @@
-/* Spendly Views Specific Styles */
+/* ==========================================================================
+   Spendly Views Specific Styles - Modern Light-First & Mobile-First
+   ========================================================================== */
 
 /* ==========================================================================
    1. AUTH VIEW
@@ -7,17 +9,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 85vh;
-  padding: 20px;
+  min-height: 80vh;
+  padding: 16px;
+  width: 100%;
 }
 .auth-card {
   width: 100%;
-  max-width: 440px;
+  max-width: 420px;
   background: var(--bg-card);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-xl);
-  padding: 36px 30px;
-  box-shadow: var(--shadow-lg), 0 0 50px rgba(0, 0, 0, 0.5);
+  padding: 32px 24px;
+  box-shadow: var(--shadow-lg);
   position: relative;
   overflow: hidden;
 }
@@ -28,18 +31,18 @@
   left: 0;
   right: 0;
   height: 4px;
-  background: linear-gradient(90deg, var(--accent-primary), #6366f1);
+  background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
 }
 .auth-brand {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 28px;
+  gap: 8px;
+  margin-bottom: 24px;
   text-align: center;
 }
 .auth-brand .brand-logo {
-  font-size: 26px;
+  font-size: 24px;
 }
 .auth-brand .brand-tagline {
   font-size: 13px;
@@ -47,18 +50,18 @@
 }
 .auth-tabs {
   display: flex;
-  background: var(--bg-primary);
+  background: var(--bg-secondary);
   border-radius: var(--radius-md);
-  padding: 4px;
-  margin-bottom: 24px;
+  padding: 3px;
+  margin-bottom: 20px;
   border: 1px solid var(--border-card);
 }
 .auth-tab-btn {
   flex: 1;
   background: none;
   border: none;
-  padding: 10px;
-  font-size: 14px;
+  padding: 8px 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
   cursor: pointer;
@@ -66,7 +69,7 @@
   transition: all var(--transition-fast);
 }
 .auth-tab-btn.active {
-  background: var(--bg-card);
+  background: var(--bg-primary);
   color: var(--text-primary);
   box-shadow: var(--shadow-sm);
 }
@@ -75,33 +78,44 @@
 .otp-input-group {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
   margin: 16px 0;
+  width: 100%;
 }
 .otp-digit {
-  width: 48px;
-  height: 52px;
+  width: 44px;
+  height: 50px;
   text-align: center;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
   background: var(--bg-primary);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-md);
   color: var(--accent-primary);
   outline: none;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
 }
 .otp-digit:focus {
   border-color: var(--accent-primary);
   box-shadow: 0 0 0 3px var(--accent-primary-subtle);
 }
 
+@media (max-width: 360px) {
+  .otp-digit {
+    width: 38px;
+    height: 46px;
+    font-size: 18px;
+  }
+}
+
 .dev-otp-helper {
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px dashed var(--accent-primary);
+  background: var(--accent-success-subtle);
+  border: 1px dashed var(--accent-success);
   border-radius: var(--radius-md);
   padding: 10px 14px;
   font-size: 12px;
-  color: var(--accent-primary);
+  color: var(--accent-success);
   margin-bottom: 16px;
   display: flex;
   align-items: center;
@@ -115,80 +129,49 @@
   background: var(--bg-card);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-lg);
-  padding: 18px 24px;
+  padding: 14px 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: 12px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
 }
 .cycle-info {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 .cycle-badge {
-  background: linear-gradient(135deg, #10b981, #059669);
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-primary-hover));
   color: #fff;
   font-weight: 700;
-  font-size: 14px;
-  padding: 6px 14px;
+  font-size: 13px;
+  padding: 4px 12px;
   border-radius: var(--radius-full);
+  box-shadow: 0 1px 4px var(--accent-primary-glow);
 }
 .cycle-entry-count {
   font-size: 13px;
   color: var(--text-secondary);
 }
 
-/* Expense Heads Grid */
-.heads-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-  gap: 20px;
-}
-.head-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-card);
-  border-radius: var(--radius-lg);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  transition: all var(--transition-normal);
-}
-.head-card:hover {
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-md);
-}
-.head-header {
-  padding: 18px 20px;
-  background: var(--bg-card-alt);
-  border-bottom: 1px solid var(--border-subtle);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.head-name {
-  font-family: var(--font-heading);
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-.head-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
+/* Action Icon Buttons (Edit, Delete, Set Name) */
 .action-icon-btn {
   background: none;
-  border: none;
+  border: 1px solid transparent;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 6px;
+  padding: 5px;
+  width: 28px;
+  height: 28px;
   border-radius: var(--radius-sm);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   transition: all var(--transition-fast);
 }
 .action-icon-btn svg {
@@ -200,454 +183,51 @@
 }
 .action-icon-btn:hover {
   color: var(--text-primary);
-  background: var(--bg-primary);
+  background: var(--bg-secondary);
+  border-color: var(--border-card);
 }
 .action-icon-btn.delete:hover {
   color: var(--accent-danger);
-}
-
-.head-body {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  flex: 1;
-}
-.head-amounts {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-.amount-box {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.amount-box-label {
-  font-size: 12px;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-.amount-box-val {
-  font-family: var(--font-heading);
-  font-size: 18px;
-  font-weight: 700;
-}
-.amount-box-val.emerald {
-  color: var(--accent-primary);
-}
-.amount-box-val.rose {
-  color: var(--accent-danger);
-}
-
-/* Spending Progress Bar */
-.progress-track {
-  height: 8px;
-  width: 100%;
-  background: var(--bg-primary);
-  border-radius: var(--radius-full);
-  overflow: hidden;
-  position: relative;
-}
-.progress-fill {
-  height: 100%;
-  border-radius: var(--radius-full);
-  background: var(--accent-primary);
-  transition: width 0.4s ease;
-}
-.progress-fill.overspent {
-  background: var(--accent-danger);
-}
-
-/* Entries List inside Head Card */
-.entries-container {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 240px;
-  overflow-y: auto;
-  border-top: 1px solid var(--border-subtle);
-  padding-top: 14px;
-}
-.entry-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
-  border-radius: var(--radius-md);
-  background: var(--bg-primary);
-  border: 1px solid var(--border-subtle);
-  font-size: 13px;
-  transition: background var(--transition-fast);
-}
-.entry-row:hover {
-  background: var(--bg-card-hover);
-}
-.entry-left {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.entry-desc {
-  font-weight: 600;
-  color: var(--text-primary);
-}
-.entry-meta {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-.entry-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.entry-amount {
-  font-family: var(--font-heading);
-  font-weight: 700;
-  font-size: 14px;
-  color: var(--text-primary);
-}
-
-/* ==========================================================================
-   3. SPLIT IT (GROUPS) VIEW
-   ========================================================================== */
-.groups-list-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 20px;
-  margin-bottom: 30px;
-}
-.group-summary-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-card);
-  border-radius: var(--radius-lg);
-  padding: 24px;
-  cursor: pointer;
-  transition: all var(--transition-normal);
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 16px;
-}
-.group-summary-card:hover {
-  border-color: var(--accent-primary);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
-.group-card-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-.group-card-title {
-  font-family: var(--font-heading);
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-.group-card-stats {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-top: 14px;
-  border-top: 1px solid var(--border-subtle);
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-/* Group Detail View */
-.group-detail-header {
-  background: var(--bg-card);
-  border: 1px solid var(--border-card);
-  border-radius: var(--radius-lg);
-  padding: 24px;
-  margin-bottom: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-.group-detail-meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-/* Group Live Calculation Banner */
-.group-live-banner {
-  background: linear-gradient(135deg, rgba(24, 34, 56, 0.9), rgba(16, 185, 129, 0.08));
-  border: 1px solid var(--border-card);
-  border-radius: var(--radius-lg);
-  padding: 20px 24px;
-  margin-bottom: 24px;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
-}
-
-/* Group Members Columns / Grid */
-.group-members-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 20px;
-  margin-bottom: 28px;
-}
-.member-column-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-card);
-  border-radius: var(--radius-lg);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.member-column-card.current-user {
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 15px var(--accent-primary-subtle);
-}
-.member-col-header {
-  padding: 16px 18px;
-  background: var(--bg-card-alt);
-  border-bottom: 1px solid var(--border-subtle);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.member-col-user {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.member-display-name {
-  font-weight: 700;
-  font-size: 15px;
-}
-.member-username-tag {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-.member-balance-pill {
-  font-size: 12px;
-  font-weight: 700;
-  padding: 4px 8px;
-  border-radius: var(--radius-full);
-}
-.member-balance-pill.positive {
-  background: var(--accent-primary-subtle);
-  color: var(--accent-primary);
-}
-.member-balance-pill.negative {
   background: var(--accent-danger-subtle);
-  color: var(--accent-danger);
-}
-.member-balance-pill.zero {
-  background: var(--bg-primary);
-  color: var(--text-muted);
+  border-color: rgba(239, 68, 68, 0.2);
 }
 
-.member-col-body {
-  padding: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  flex: 1;
-}
-
-/* Settlements Section in Group */
-.settlements-panel {
-  background: var(--bg-card);
-  border: 1px solid var(--border-card);
-  border-radius: var(--radius-lg);
-  padding: 24px;
-  margin-top: 24px;
-}
-.settlements-title {
-  font-family: var(--font-heading);
-  font-size: 20px;
-  font-weight: 700;
-  margin-bottom: 16px;
-  display: flex;
+/* Mobile Scroll Cue Helper */
+.mobile-scroll-cue {
+  display: none;
   align-items: center;
-  justify-content: space-between;
-}
-.settlement-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 18px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  margin-bottom: 10px;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-.settlement-instruction {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 14px;
-}
-.settlement-arrow {
-  color: var(--accent-primary);
-  font-weight: 700;
-}
-.settlement-amount {
-  font-family: var(--font-heading);
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-/* ==========================================================================
-   4. BILL SECTION
-   ========================================================================== */
-.bills-tabs {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 24px;
-}
-.bills-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 20px;
-}
-.bill-receipt-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-card);
-  border-radius: var(--radius-lg);
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  position: relative;
-  overflow: hidden;
-}
-.bill-receipt-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #10b981, #06b6d4);
-}
-.bill-receipt-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.bill-receipt-title {
-  font-family: var(--font-heading);
-  font-size: 18px;
-  font-weight: 700;
-}
-.bill-date {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-.bill-totals-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 14px;
-  background: var(--bg-primary);
-  border-radius: var(--radius-md);
+  gap: 6px;
+  font-size: 11px;
   font-weight: 600;
+  color: var(--text-muted);
+  padding: 0 4px 6px 4px;
 }
-
-/* ==========================================================================
-   5. ANALYTICS VIEW
-   ========================================================================== */
-.filter-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 24px;
-  flex-wrap: wrap;
+.mobile-scroll-cue svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
 }
-.filter-btn {
-  background: var(--bg-card);
-  border: 1px solid var(--border-card);
-  color: var(--text-secondary);
-  padding: 8px 16px;
-  border-radius: var(--radius-full);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-.filter-btn.active {
-  background: var(--accent-primary);
-  border-color: var(--accent-primary);
-  color: #fff;
-  box-shadow: 0 2px 10px var(--accent-primary-glow);
-}
-
-/* ==========================================================================
-   6. PROFILE VIEW
-   ========================================================================== */
-.profile-grid {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: 24px;
-}
-@media (max-width: 900px) {
-  .profile-grid {
-    grid-template-columns: 1fr;
+@media (max-width: 768px) {
+  .mobile-scroll-cue {
+    display: flex;
   }
 }
-.profile-avatar-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 16px;
-}
-.profile-avatar-upload-wrapper {
-  position: relative;
-  cursor: pointer;
-}
-.profile-avatar-upload-wrapper .user-avatar-img,
-.profile-avatar-upload-wrapper .user-avatar-placeholder {
-  width: 100px;
-  height: 100px;
-  font-size: 36px;
-}
-.avatar-edit-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  color: #fff;
-  transition: opacity var(--transition-fast);
-}
-.profile-avatar-upload-wrapper:hover .avatar-edit-overlay {
-  opacity: 1;
-}
 
-.danger-zone-card {
-  border-color: rgba(244, 63, 94, 0.3);
-  background: rgba(244, 63, 94, 0.03);
-}
-
-/* ==========================================================================
-   7. OWN EXPENSES 4-COLUMN TABLE LAYOUT (Part 8)
-   ========================================================================== */
+/* Own Expenses 4-Column Table Card */
 .own-expenses-table-card {
   background: var(--bg-card);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-lg);
   overflow: hidden;
   margin-bottom: 24px;
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
 }
 .own-expenses-table-wrapper {
   width: 100%;
+  max-width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -655,25 +235,26 @@
   width: 100%;
   border-collapse: collapse;
   text-align: left;
-  min-width: 680px;
+  min-width: 660px;
 }
 .own-expenses-table th {
   background: var(--bg-card-alt);
-  padding: 14px 18px;
+  padding: 12px 16px;
   font-family: var(--font-heading);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--text-secondary);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-card);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   white-space: nowrap;
 }
 .own-expenses-table td {
-  padding: 16px 18px;
-  border-bottom: 1px solid var(--border-subtle);
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-card);
   vertical-align: top;
   font-size: 14px;
+  background: var(--bg-primary);
 }
 .own-expenses-table tr:last-child td {
   border-bottom: none;
@@ -684,6 +265,7 @@
 
 .col-head-cell {
   width: 25%;
+  min-width: 160px;
 }
 .col-head-title-row {
   display: flex;
@@ -693,30 +275,34 @@
 }
 .col-head-name {
   font-family: var(--font-heading);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--text-primary);
+  word-break: break-word;
 }
 .col-head-actions {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .col-set-amount-cell {
-  width: 15%;
+  width: 16%;
+  min-width: 100px;
   text-align: right;
 }
 .col-set-amount-val {
   font-family: var(--font-heading);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--text-primary);
   white-space: nowrap;
 }
 
 .col-spent-cell {
-  width: 40%;
+  width: 38%;
+  min-width: 240px;
 }
 .col-entries-list {
   display: flex;
@@ -727,26 +313,30 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-subtle);
+  padding: 7px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-card);
   border-radius: var(--radius-md);
   font-size: 13px;
-  gap: 10px;
-  transition: background var(--transition-fast);
+  gap: 8px;
+  transition: all var(--transition-fast);
 }
 .own-expense-entry-row:hover {
   background: var(--bg-card);
-  border-color: var(--border-card);
+  border-color: var(--border-strong);
 }
 .own-expense-entry-info {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+  flex: 1;
 }
 .own-expense-entry-desc {
   font-weight: 600;
   color: var(--text-primary);
+  word-break: break-word;
+  line-height: 1.3;
 }
 .own-expense-entry-meta {
   font-size: 11px;
@@ -755,13 +345,13 @@
 .own-expense-entry-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
 }
 .own-expense-entry-amount {
   font-family: var(--font-heading);
   font-weight: 700;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-primary);
   white-space: nowrap;
 }
@@ -775,18 +365,19 @@
   background: var(--accent-primary-subtle);
   border: 1px dashed var(--accent-primary);
   border-radius: var(--radius-sm);
-  padding: 6px 12px;
+  padding: 5px 10px;
   cursor: pointer;
-  margin-top: 8px;
+  margin-top: 6px;
   align-self: flex-start;
   transition: all var(--transition-fast);
 }
 .add-entry-table-btn:hover {
-  background: rgba(16, 185, 129, 0.2);
+  background: rgba(79, 70, 229, 0.15);
 }
 
 .col-remaining-cell {
-  width: 20%;
+  width: 21%;
+  min-width: 140px;
   text-align: right;
 }
 .col-remaining-content {
@@ -797,12 +388,12 @@
 }
 .col-remaining-val {
   font-family: var(--font-heading);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   white-space: nowrap;
 }
 .col-remaining-val.remaining {
-  color: var(--accent-primary);
+  color: var(--accent-success);
 }
 .col-remaining-val.overspent {
   color: var(--accent-danger);
@@ -811,6 +402,7 @@
 /* Bottom Calculation Section */
 .bottom-calculations-section {
   margin-top: 24px;
+  margin-bottom: 32px;
 }
 .bottom-section-title {
   font-family: var(--font-heading);
@@ -821,17 +413,103 @@
 }
 
 /* ==========================================================================
-   8. SPLIT IT MEMBER-COLUMN TABLE LAYOUT (Part 9)
+   3. SPLIT IT (GROUPS) VIEW
    ========================================================================== */
+.groups-list-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+  min-width: 0;
+  max-width: 100%;
+}
+.group-summary-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-normal);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+}
+.group-summary-card:hover {
+  border-color: var(--accent-primary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.group-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.group-card-title {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+.group-card-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-card);
+}
+.group-card-stats strong {
+  color: var(--text-primary);
+  font-family: var(--font-heading);
+  font-size: 14px;
+}
+
+@media (max-width: 600px) {
+  .groups-list-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+.group-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+@media (max-width: 600px) {
+  .group-detail-header {
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+}
+
+/* Split It Member-Column Table Layout */
 .split-it-table-card {
   background: var(--bg-card);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
 }
 .split-it-table-container {
   width: 100%;
+  max-width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -842,9 +520,9 @@
 }
 .split-it-table th {
   background: var(--bg-card-alt);
-  padding: 16px;
-  border-bottom: 2px solid var(--border-subtle);
-  border-right: 1px solid var(--border-subtle);
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--border-card);
+  border-right: 1px solid var(--border-card);
   vertical-align: top;
   text-align: left;
 }
@@ -852,12 +530,13 @@
   border-right: none;
 }
 .split-it-table th.is-me {
-  background: rgba(16, 185, 129, 0.08);
+  background: var(--accent-primary-subtle);
   border-top: 3px solid var(--accent-primary);
 }
 .split-it-table td {
-  padding: 16px;
-  border-right: 1px solid var(--border-subtle);
+  padding: 12px;
+  border-right: 1px solid var(--border-card);
+  border-bottom: 1px solid var(--border-card);
   vertical-align: top;
   background: var(--bg-card);
 }
@@ -865,7 +544,7 @@
   border-right: none;
 }
 .split-it-table td.is-me {
-  background: rgba(16, 185, 129, 0.02);
+  background: rgba(79, 70, 229, 0.02);
 }
 
 .member-th-header {
@@ -877,18 +556,22 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
 }
 .member-th-user {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
 }
 .member-th-name {
   font-family: var(--font-heading);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text-primary);
+  word-break: break-word;
+  line-height: 1.3;
 }
 .member-th-tag {
   font-size: 11px;
@@ -898,16 +581,17 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 10px;
-  background: var(--bg-primary);
+  padding: 5px 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-card);
   border-radius: var(--radius-md);
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-secondary);
 }
 .member-th-spent-badge strong {
   color: var(--text-primary);
   font-family: var(--font-heading);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .member-col-expenses {
@@ -920,44 +604,46 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-subtle);
+  padding: 7px 9px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-card);
   border-radius: var(--radius-md);
   font-size: 13px;
-  gap: 8px;
-  transition: background var(--transition-fast);
+  gap: 6px;
+  transition: all var(--transition-fast);
 }
 .group-exp-row:hover {
-  background: var(--bg-card-hover);
+  background: var(--bg-card);
+  border-color: var(--border-strong);
 }
 .group-exp-info {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  overflow: hidden;
+  min-width: 0;
+  flex: 1;
 }
 .group-exp-desc {
   font-weight: 600;
   color: var(--text-primary);
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
+  word-break: break-word;
+  line-height: 1.3;
+  font-size: 12px;
 }
 .group-exp-meta {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-muted);
 }
 .group-exp-right {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
 }
 .group-exp-amount {
   font-family: var(--font-heading);
   font-weight: 700;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-primary);
   white-space: nowrap;
 }
@@ -968,9 +654,9 @@
   justify-content: center;
   gap: 6px;
   width: 100%;
-  margin-top: 10px;
-  padding: 8px 12px;
-  font-size: 13px;
+  margin-top: 8px;
+  padding: 7px 10px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--accent-primary);
   background: var(--accent-primary-subtle);
@@ -980,29 +666,30 @@
   transition: all var(--transition-fast);
 }
 .add-group-expense-col-btn:hover {
-  background: rgba(16, 185, 129, 0.2);
+  background: rgba(79, 70, 229, 0.15);
 }
 
 /* Leave Request Admin Notice Banner */
 .leave-request-banner {
-  background: rgba(245, 158, 11, 0.1);
+  background: var(--accent-warning-subtle);
   border: 1px solid rgba(245, 158, 11, 0.3);
   border-radius: var(--radius-lg);
-  padding: 14px 20px;
-  margin-bottom: 20px;
+  padding: 12px 16px;
+  margin-bottom: 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
 }
 .leave-request-banner-text {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-primary);
 }
 .leave-request-banner-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 /* Group Calculations Summary Table at Bottom */
@@ -1010,28 +697,213 @@
   background: var(--bg-card);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-lg);
-  padding: 20px 24px;
+  padding: 18px 20px;
   margin-top: 24px;
+  margin-bottom: 32px;
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+}
+@media (max-width: 600px) {
+  .group-breakdown-card {
+    padding: 14px 12px;
+  }
 }
 .group-breakdown-table {
   width: 100%;
+  min-width: 480px;
   border-collapse: collapse;
-  margin-top: 12px;
-  font-size: 14px;
+  margin-top: 10px;
+  font-size: 13px;
 }
 .group-breakdown-table th {
-  padding: 10px 14px;
+  padding: 8px 12px;
   background: var(--bg-card-alt);
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 700;
   color: var(--text-secondary);
   text-align: left;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-card);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 .group-breakdown-table td {
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border-subtle);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-card);
+  color: var(--text-primary);
 }
 .group-breakdown-table tr:last-child td {
   border-bottom: none;
 }
 
+/* ==========================================================================
+   4. BILLS VIEW
+   ========================================================================== */
+.bills-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+.bills-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  min-width: 0;
+  max-width: 100%;
+}
+.bill-receipt-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: all var(--transition-normal);
+  min-width: 0;
+}
+.bill-receipt-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
+.bill-receipt-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.bill-receipt-title {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.bill-date {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.bill-totals-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  border: 1px solid var(--border-card);
+}
+
+@media (max-width: 600px) {
+  .bills-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+/* ==========================================================================
+   5. ANALYTICS VIEW
+   ========================================================================== */
+.filter-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+  flex-wrap: nowrap;
+  max-width: 100%;
+}
+.filter-btn {
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--border-card);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+}
+.filter-btn:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+.filter-btn.active {
+  background: var(--accent-primary);
+  color: #fff;
+  border-color: var(--accent-primary);
+  box-shadow: 0 2px 6px var(--accent-primary-glow);
+}
+
+@media (max-width: 600px) {
+  #custom-date-inputs {
+    flex-wrap: wrap !important;
+    margin-left: 0 !important;
+    width: 100%;
+    margin-top: 8px;
+  }
+}
+
+/* ==========================================================================
+   6. PROFILE VIEW
+   ========================================================================== */
+.profile-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 20px;
+  margin-bottom: 30px;
+  min-width: 0;
+  max-width: 100%;
+}
+.profile-avatar-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 24px;
+  height: fit-content;
+}
+.profile-avatar-upload-wrapper {
+  width: 96px;
+  height: 96px;
+  position: relative;
+  cursor: pointer;
+  border-radius: 50%;
+}
+.profile-avatar-upload-wrapper .user-avatar-img,
+.profile-avatar-upload-wrapper .user-avatar-placeholder {
+  width: 96px;
+  height: 96px;
+  font-size: 32px;
+}
+.avatar-edit-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+.profile-avatar-upload-wrapper:hover .avatar-edit-overlay {
+  opacity: 1;
+}
+
+@media (max-width: 768px) {
+  .profile-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
