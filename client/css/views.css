@@ -628,3 +628,403 @@
   border-color: rgba(244, 63, 94, 0.3);
   background: rgba(244, 63, 94, 0.03);
 }
+
+/* ==========================================================================
+   7. OWN EXPENSES 4-COLUMN TABLE LAYOUT (Part 8)
+   ========================================================================== */
+.own-expenses-table-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+.own-expenses-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.own-expenses-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  min-width: 680px;
+}
+.own-expenses-table th {
+  background: var(--bg-card-alt);
+  padding: 14px 18px;
+  font-family: var(--font-heading);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.own-expenses-table td {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: top;
+  font-size: 14px;
+}
+.own-expenses-table tr:last-child td {
+  border-bottom: none;
+}
+.own-expenses-table tr:hover td {
+  background: var(--bg-card-hover);
+}
+
+.col-head-cell {
+  width: 25%;
+}
+.col-head-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.col-head-name {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.col-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.col-set-amount-cell {
+  width: 15%;
+  text-align: right;
+}
+.col-set-amount-val {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.col-spent-cell {
+  width: 40%;
+}
+.col-entries-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.own-expense-entry-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  gap: 10px;
+  transition: background var(--transition-fast);
+}
+.own-expense-entry-row:hover {
+  background: var(--bg-card);
+  border-color: var(--border-card);
+}
+.own-expense-entry-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.own-expense-entry-desc {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.own-expense-entry-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.own-expense-entry-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.own-expense-entry-amount {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.add-entry-table-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-primary);
+  background: var(--accent-primary-subtle);
+  border: 1px dashed var(--accent-primary);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  cursor: pointer;
+  margin-top: 8px;
+  align-self: flex-start;
+  transition: all var(--transition-fast);
+}
+.add-entry-table-btn:hover {
+  background: rgba(16, 185, 129, 0.2);
+}
+
+.col-remaining-cell {
+  width: 20%;
+  text-align: right;
+}
+.col-remaining-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+}
+.col-remaining-val {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.col-remaining-val.remaining {
+  color: var(--accent-primary);
+}
+.col-remaining-val.overspent {
+  color: var(--accent-danger);
+}
+
+/* Bottom Calculation Section */
+.bottom-calculations-section {
+  margin-top: 24px;
+}
+.bottom-section-title {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 14px;
+}
+
+/* ==========================================================================
+   8. SPLIT IT MEMBER-COLUMN TABLE LAYOUT (Part 9)
+   ========================================================================== */
+.split-it-table-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 28px;
+}
+.split-it-table-container {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.split-it-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.split-it-table th {
+  background: var(--bg-card-alt);
+  padding: 16px;
+  border-bottom: 2px solid var(--border-subtle);
+  border-right: 1px solid var(--border-subtle);
+  vertical-align: top;
+  text-align: left;
+}
+.split-it-table th:last-child {
+  border-right: none;
+}
+.split-it-table th.is-me {
+  background: rgba(16, 185, 129, 0.08);
+  border-top: 3px solid var(--accent-primary);
+}
+.split-it-table td {
+  padding: 16px;
+  border-right: 1px solid var(--border-subtle);
+  vertical-align: top;
+  background: var(--bg-card);
+}
+.split-it-table td:last-child {
+  border-right: none;
+}
+.split-it-table td.is-me {
+  background: rgba(16, 185, 129, 0.02);
+}
+
+.member-th-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.member-th-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.member-th-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.member-th-name {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.member-th-tag {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.member-th-spent-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--bg-primary);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.member-th-spent-badge strong {
+  color: var(--text-primary);
+  font-family: var(--font-heading);
+  font-size: 13px;
+}
+
+.member-col-expenses {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 120px;
+}
+.group-exp-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  gap: 8px;
+  transition: background var(--transition-fast);
+}
+.group-exp-row:hover {
+  background: var(--bg-card-hover);
+}
+.group-exp-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+.group-exp-desc {
+  font-weight: 600;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.group-exp-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.group-exp-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.group-exp-amount {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.add-group-expense-col-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-primary);
+  background: var(--accent-primary-subtle);
+  border: 1px dashed var(--accent-primary);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.add-group-expense-col-btn:hover {
+  background: rgba(16, 185, 129, 0.2);
+}
+
+/* Leave Request Admin Notice Banner */
+.leave-request-banner {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: var(--radius-lg);
+  padding: 14px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.leave-request-banner-text {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.leave-request-banner-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Group Calculations Summary Table at Bottom */
+.group-breakdown-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  margin-top: 24px;
+}
+.group-breakdown-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 14px;
+}
+.group-breakdown-table th {
+  padding: 10px 14px;
+  background: var(--bg-card-alt);
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-align: left;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.group-breakdown-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.group-breakdown-table tr:last-child td {
+  border-bottom: none;
+}
+

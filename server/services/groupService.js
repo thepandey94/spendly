@@ -381,8 +381,6 @@ async function requestLeaveGroup(userId, groupId) {
     throw new Error('Admin must handle succession before leaving.');
   }
 
-  await assertMembershipChangesAllowed(groupId);
-
   const now = Date.now();
   await db.prepare(`
     UPDATE group_members 
@@ -393,11 +391,26 @@ async function requestLeaveGroup(userId, groupId) {
   const user = await db.prepare('SELECT username, display_name FROM users WHERE id = ?').get(userId);
   const group = await db.prepare('SELECT admin_id, name FROM groups WHERE id = ?').get(groupId);
 
+  const memberName = user.display_name || user.username;
   await notificationService.createNotification(group.admin_id, {
     type: 'leave_request',
     title: 'Leave Request Received',
-    message: `${user.display_name || user.username} has requested to leave "${group.name}".`,
-    data: { groupId, userId }
+    message: `${memberName} has requested to leave "${group.name}".`,
+    data: {
+      groupId,
+      userId,
+      memberName,
+      groupName: group.name,
+      group_id: groupId,
+      user_id: userId,
+      member_name: memberName
+    }
+  });
+
+  websocketService.broadcastToGroup(groupId, 'leave_requested', {
+    groupId,
+    userId,
+    memberName
   });
 
   return { success: true, message: 'Leave request submitted to admin for approval.' };
@@ -434,7 +447,39 @@ async function approveLeaveRequest(adminId, groupId, targetUserId) {
     userId: targetUserId
   });
 
-  return { success: true };
+  return { success: true, message: 'Leave request approved.' };
+}
+
+/**
+ * Admin rejects a member's leave request (Section 46 / Part 10)
+ */
+async function rejectLeaveRequest(adminId, groupId, targetUserId) {
+  const adminMember = await getMemberRole(groupId, adminId);
+  if (!adminMember || adminMember.role !== 'admin') {
+    throw new Error('Only the group admin can reject leave requests.');
+  }
+
+  await db.prepare(`
+    UPDATE group_members 
+    SET leave_requested_at = NULL 
+    WHERE group_id = ? AND user_id = ?
+  `).run(groupId, targetUserId);
+
+  const group = await db.prepare('SELECT name FROM groups WHERE id = ?').get(groupId);
+
+  await notificationService.createNotification(targetUserId, {
+    type: 'leave_rejected',
+    title: 'Leave Request Declined',
+    message: `Your request to leave "${group.name}" was declined by the admin.`,
+    data: { groupId }
+  });
+
+  websocketService.broadcastToGroup(groupId, 'member_leave_rejected', {
+    groupId,
+    userId: targetUserId
+  });
+
+  return { success: true, message: 'Leave request declined.' };
 }
 
 /**
@@ -859,6 +904,11 @@ async function startNewGroupCycle(adminId, groupId) {
  * Active cycle expenses, live balances, members, settlements, and roles
  */
 async function getGroupDetails(groupId, userId) {
+  const isHidden = await db.prepare('SELECT id FROM user_hidden_groups WHERE user_id = ? AND group_id = ?').get(userId, groupId);
+  if (isHidden) {
+    throw new Error('Group not found or you are not a member.');
+  }
+
   const member = await getMemberRole(groupId, userId);
   if (!member) {
     throw new Error('Group not found or you are not a member.');
@@ -927,6 +977,11 @@ async function getGroupDetails(groupId, userId) {
     }
   }
 
+  // Check if this group can be removed from account by this user (Part 5)
+  const billCountRow = await db.prepare('SELECT COUNT(*) as count FROM group_bills WHERE group_id = ?').get(groupId);
+  const totalBills = billCountRow ? Number(billCountRow.count) : 0;
+  const canRemoveFromAccount = totalBills > 0 && (!activeCycle || expenses.length === 0);
+
   return {
     group: {
       id: group.id,
@@ -938,6 +993,7 @@ async function getGroupDetails(groupId, userId) {
     activeCycle,
     latestCycle,
     hasActiveCycle: !!activeCycle,
+    canRemoveFromAccount,
     members: members.map(m => ({
       userId: m.user_id,
       role: m.role,
@@ -964,7 +1020,7 @@ async function getGroupDetails(groupId, userId) {
 }
 
 /**
- * List all groups for a user
+ * List all groups for a user (excludes groups removed from their personal account)
  */
 async function getUserGroups(userId) {
   const groups = await db.prepare(`
@@ -975,10 +1031,75 @@ async function getUserGroups(userId) {
     FROM group_members gm
     JOIN groups g ON g.id = gm.group_id
     WHERE gm.user_id = ? AND gm.status = 'active' AND g.deleted_at IS NULL
+      AND g.id NOT IN (SELECT group_id FROM user_hidden_groups WHERE user_id = ?)
     ORDER BY g.updated_at DESC
-  `).all(userId);
+  `).all(userId, userId);
 
   return groups;
+}
+
+/**
+ * Remove group from a user's own Spendly account after billing is completed (Part 5)
+ * Does NOT delete the group globally, preserves all historical bills and other members' data.
+ */
+async function removeGroupFromAccount(userId, groupId) {
+  const group = await db.prepare('SELECT * FROM groups WHERE id = ? AND deleted_at IS NULL').get(groupId);
+  if (!group) {
+    throw new Error('Group not found.');
+  }
+
+  const member = await db.prepare('SELECT * FROM group_members WHERE group_id = ? AND user_id = ?').get(groupId, userId);
+  if (!member) {
+    throw new Error('You are not a member of this group.');
+  }
+
+  // Verify group billing has been completed
+  const billCountRow = await db.prepare('SELECT COUNT(*) as count FROM group_bills WHERE group_id = ?').get(groupId);
+  const totalBills = billCountRow ? Number(billCountRow.count) : 0;
+  if (totalBills === 0) {
+    throw new Error('Group billing must be completed before removing the group from your account.');
+  }
+
+  // Ensure active cycle has no unbilled expenses
+  const activeCycle = await getActiveGroupCycle(groupId);
+  if (activeCycle) {
+    const expCountRow = await db.prepare('SELECT COUNT(*) as count FROM group_expenses WHERE cycle_id = ?').get(activeCycle.id);
+    const expCount = expCountRow ? Number(expCountRow.count) : 0;
+    if (expCount > 0) {
+      throw new Error('Please complete billing for the current active cycle before removing this group from your account.');
+    }
+  }
+
+  // If user is admin, handle admin succession if other active members remain
+  if (member.role === 'admin') {
+    const otherMembers = await db.prepare(`
+      SELECT user_id FROM group_members 
+      WHERE group_id = ? AND user_id != ? AND status = 'active' 
+      ORDER BY order_index ASC
+    `).all(groupId, userId);
+
+    if (otherMembers.length > 0) {
+      const newAdminId = otherMembers[0].user_id;
+      const now = Date.now();
+      await db.prepare('UPDATE groups SET admin_id = ?, updated_at = ? WHERE id = ?').run(newAdminId, now, groupId);
+      await db.prepare("UPDATE group_members SET role = 'admin' WHERE group_id = ? AND user_id = ?").run(groupId, newAdminId);
+    }
+  }
+
+  // Set member status to 'left' if currently active
+  await db.prepare("UPDATE group_members SET status = 'left', leave_requested_at = NULL WHERE group_id = ? AND user_id = ?").run(groupId, userId);
+
+  // Record in user_hidden_groups
+  const existingHidden = await db.prepare('SELECT id FROM user_hidden_groups WHERE user_id = ? AND group_id = ?').get(userId, groupId);
+  if (!existingHidden) {
+    const hideId = crypto.randomUUID();
+    await db.prepare(`
+      INSERT INTO user_hidden_groups (id, user_id, group_id, created_at)
+      VALUES (?, ?, ?, ?)
+    `).run(hideId, userId, groupId, Date.now());
+  }
+
+  return { success: true, message: 'Group successfully removed from your account.' };
 }
 
 module.exports = {
@@ -989,6 +1110,8 @@ module.exports = {
   removeMember,
   requestLeaveGroup,
   approveLeaveRequest,
+  rejectLeaveRequest,
+  removeGroupFromAccount,
   deleteGroup,
   addGroupExpense,
   updateGroupExpense,

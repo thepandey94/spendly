@@ -219,6 +219,17 @@ const SpendlyApp = {
             </button>
           </div>
         ` : ''}
+
+        ${n.type === 'leave_request' && n.data && n.data.groupId && n.data.userId ? `
+          <div class="notification-actions">
+            <button class="btn btn-sm btn-primary approve-leave-btn" data-group-id="${n.data.groupId}" data-user-id="${n.data.userId}" data-notif-id="${n.id}">
+              Approve Leave
+            </button>
+            <button class="btn btn-sm btn-secondary reject-leave-btn" data-group-id="${n.data.groupId}" data-user-id="${n.data.userId}" data-notif-id="${n.id}">
+              Reject
+            </button>
+          </div>
+        ` : ''}
       </div>
     `).join('');
 
@@ -250,6 +261,47 @@ const SpendlyApp = {
           SpendlyApp.showToast({ type: 'info', title: 'Declined', message: 'Invitation declined.' });
           await SpendlyAPI.post('/notifications/mark-read', { notificationId: notifId });
           this.fetchNotifications();
+        } catch (err) {
+          SpendlyApp.showToast({ type: 'error', title: 'Error', message: err.message });
+        }
+      };
+    });
+
+    // Attach actions for leave requests inside notifications (Part 10)
+    listContainer.querySelectorAll('.approve-leave-btn').forEach(btn => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        const groupId = btn.getAttribute('data-group-id');
+        const targetUserId = btn.getAttribute('data-user-id');
+        const notifId = btn.getAttribute('data-notif-id');
+        try {
+          await SpendlyAPI.post(`/groups/${groupId}/members/${targetUserId}/approve-leave`);
+          SpendlyApp.showToast({ type: 'success', title: 'Leave Approved', message: 'Member leave request was approved.' });
+          await SpendlyAPI.post('/notifications/mark-read', { notificationId: notifId });
+          this.fetchNotifications();
+          if (window.location.hash.includes(groupId) && window.SpendlySplitItView) {
+            SpendlySplitItView.loadGroupDetail(groupId);
+          }
+        } catch (err) {
+          SpendlyApp.showToast({ type: 'error', title: 'Action Prohibited', message: err.message });
+        }
+      };
+    });
+
+    listContainer.querySelectorAll('.reject-leave-btn').forEach(btn => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        const groupId = btn.getAttribute('data-group-id');
+        const targetUserId = btn.getAttribute('data-user-id');
+        const notifId = btn.getAttribute('data-notif-id');
+        try {
+          await SpendlyAPI.post(`/groups/${groupId}/members/${targetUserId}/reject-leave`);
+          SpendlyApp.showToast({ type: 'info', title: 'Leave Declined', message: 'Member leave request was rejected.' });
+          await SpendlyAPI.post('/notifications/mark-read', { notificationId: notifId });
+          this.fetchNotifications();
+          if (window.location.hash.includes(groupId) && window.SpendlySplitItView) {
+            SpendlySplitItView.loadGroupDetail(groupId);
+          }
         } catch (err) {
           SpendlyApp.showToast({ type: 'error', title: 'Error', message: err.message });
         }

@@ -96,7 +96,7 @@ const SpendlyOwnExpensesView = {
     const addHeadBtn = document.getElementById('add-head-btn');
     if (addHeadBtn) addHeadBtn.style.display = 'inline-flex';
 
-    // Active Cycle View
+    // Active Cycle View - Entries begin at the TOP (Part 8)
     const totalSet = totals.totalSetAmount;
     const totalSpent = totals.totalSpent;
     const totalRem = totals.totalRemaining;
@@ -104,8 +104,8 @@ const SpendlyOwnExpensesView = {
     const count = totals.entryCount;
 
     container.innerHTML = `
-      <!-- Cycle Status Banner -->
-      <div class="cycle-banner">
+      <!-- Cycle Status Banner at top -->
+      <div class="cycle-banner" style="margin-bottom: 20px;">
         <div class="cycle-info">
           <div class="cycle-badge">Active Cycle #${cycle.cycle_number}</div>
           <span class="cycle-entry-count">
@@ -117,131 +117,145 @@ const SpendlyOwnExpensesView = {
         </div>
       </div>
 
-      <!-- KPI Summary Cards -->
-      <div class="kpi-grid">
-        <div class="kpi-card">
-          <span class="kpi-label">Total Budget (Set Amount)</span>
-          <span class="kpi-value">${SpendlyStore.formatINR(totalSet)}</span>
-          <span class="kpi-subtext">${heads.length} expense head(s)</span>
-        </div>
-
-        <div class="kpi-card ${totalSpent > totalSet ? 'danger' : ''}">
-          <span class="kpi-label">Total Spent</span>
-          <span class="kpi-value" style="color: ${totalSpent > totalSet ? 'var(--accent-danger)' : 'var(--text-primary)'};">
-            ${SpendlyStore.formatINR(totalSpent)}
-          </span>
-          <span class="kpi-subtext">${totalSet > 0 ? ((totalSpent / totalSet) * 100).toFixed(1) : 0}% of budget</span>
-        </div>
-
-        <div class="kpi-card cyan">
-          <span class="kpi-label">Remaining Balance</span>
-          <span class="kpi-value" style="color: var(--accent-primary);">
-            ${SpendlyStore.formatINR(totalRem)}
-          </span>
-          <span class="kpi-subtext">Within allocated budgets</span>
-        </div>
-
-        <div class="kpi-card ${totalOver > 0 ? 'danger' : ''}">
-          <span class="kpi-label">Total Overspent</span>
-          <span class="kpi-value" style="color: ${totalOver > 0 ? 'var(--accent-danger)' : 'var(--text-muted)'};">
-            ${SpendlyStore.formatINR(totalOver)}
-          </span>
-          <span class="kpi-subtext">${totalOver > 0 ? 'Exceeded head budgets' : 'None overspent'}</span>
-        </div>
-      </div>
-
-      <!-- Expense Heads Grid -->
+      <!-- Own Expenses 4-Column Table (Part 8) -->
       ${heads.length === 0 ? `
-        <div class="card empty-state">
+        <div class="card empty-state" style="margin-bottom: 24px;">
           <div class="empty-state-icon">💼</div>
           <div class="empty-state-title">No Expense Heads Created Yet</div>
-          <p class="empty-state-text">Create your own expense heads (e.g. Rent, Groceries, Transport, Bills) to begin tracking your spending.</p>
+          <p class="empty-state-text">Create your own budget/expenditure heads (e.g. Rent, Groceries, Transport, Bills) to begin tracking your spending.</p>
           <button class="btn btn-primary" onclick="SpendlyOwnExpensesView.showAddHeadModal()">Create First Expense Head</button>
         </div>
       ` : `
-        <div class="heads-grid">
-          ${heads.map(h => this.renderHeadCard(h)).join('')}
+        <div class="own-expenses-table-card">
+          <div class="own-expenses-table-wrapper">
+            <table class="own-expenses-table">
+              <thead>
+                <tr>
+                  <th class="col-head-cell">Expenditure / Budget Head</th>
+                  <th class="col-set-amount-cell">Set Amount</th>
+                  <th class="col-spent-cell">Spent / Expense Entries</th>
+                  <th class="col-remaining-cell">Remaining / Overspent</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${heads.map(h => this.renderHeadTableRow(h)).join('')}
+              </tbody>
+            </table>
+          </div>
         </div>
       `}
+
+      <!-- Overall Calculations Section at BOTTOM (Part 8) -->
+      <div class="bottom-calculations-section">
+        <h3 class="bottom-section-title">Overall Cycle Calculations</h3>
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <span class="kpi-label">Total Budget (Set Amount)</span>
+            <span class="kpi-value">${SpendlyStore.formatINR(totalSet)}</span>
+            <span class="kpi-subtext">${heads.length} expenditure head(s)</span>
+          </div>
+
+          <div class="kpi-card ${totalSpent > totalSet ? 'danger' : ''}">
+            <span class="kpi-label">Total Spent</span>
+            <span class="kpi-value" style="color: ${totalSpent > totalSet ? 'var(--accent-danger)' : 'var(--text-primary)'};">
+              ${SpendlyStore.formatINR(totalSpent)}
+            </span>
+            <span class="kpi-subtext">${totalSet > 0 ? ((totalSpent / totalSet) * 100).toFixed(1) : 0}% of budget</span>
+          </div>
+
+          <div class="kpi-card cyan">
+            <span class="kpi-label">Remaining Balance</span>
+            <span class="kpi-value" style="color: var(--accent-primary);">
+              ${SpendlyStore.formatINR(totalRem)}
+            </span>
+            <span class="kpi-subtext">Within allocated budgets</span>
+          </div>
+
+          <div class="kpi-card ${totalOver > 0 ? 'danger' : ''}">
+            <span class="kpi-label">Total Overspent</span>
+            <span class="kpi-value" style="color: ${totalOver > 0 ? 'var(--accent-danger)' : 'var(--text-muted)'};">
+              ${SpendlyStore.formatINR(totalOver)}
+            </span>
+            <span class="kpi-subtext">${totalOver > 0 ? 'Exceeded head budgets' : 'None overspent'}</span>
+          </div>
+        </div>
+      </div>
     `;
 
     this.attachHeadEvents();
   },
 
-  renderHeadCard(head) {
-    const percent = head.setAmount > 0 ? Math.min(Math.round((head.spent / head.setAmount) * 100), 100) : (head.spent > 0 ? 100 : 0);
+  renderHeadTableRow(head) {
     const isOverspent = head.spent > head.setAmount;
+    const remainingText = isOverspent 
+      ? `Overspent by ${SpendlyStore.formatINR(head.overspent)}` 
+      : `${SpendlyStore.formatINR(head.remaining)} remaining`;
 
     return `
-      <div class="head-card" data-head-id="${head.id}">
-        <div class="head-header">
-          <div class="head-name">${this.escapeHtml(head.name)}</div>
-          <div class="head-actions">
-            <button class="action-icon-btn edit-head-btn" title="Edit Head" data-head-id="${head.id}" data-name="${this.escapeHtml(head.name)}" data-amount="${head.setAmount / 100}">
-              <svg viewBox="0 0 24 24" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor"/></svg>
-            </button>
-            <button class="action-icon-btn delete delete-head-btn" title="Delete Head" data-head-id="${head.id}">
-              <svg viewBox="0 0 24 24" fill="none"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke="currentColor"/></svg>
-            </button>
-          </div>
-        </div>
-
-        <div class="head-body">
-          <div class="head-amounts">
-            <div class="amount-box">
-              <span class="amount-box-label">Set Amount</span>
-              <span class="amount-box-val">${SpendlyStore.formatINR(head.setAmount)}</span>
-            </div>
-            <div class="amount-box">
-              <span class="amount-box-label">Total Spent</span>
-              <span class="amount-box-val ${isOverspent ? 'rose' : ''}">${SpendlyStore.formatINR(head.spent)}</span>
+      <tr data-head-id="${head.id}">
+        <!-- Column 1: Expenditure / Budget Head with Edit & Delete options -->
+        <td class="col-head-cell">
+          <div class="col-head-title-row">
+            <span class="col-head-name">${this.escapeHtml(head.name)}</span>
+            <div class="col-head-actions">
+              <button class="action-icon-btn edit-head-btn" title="Edit Expenditure Head" data-head-id="${head.id}" data-name="${this.escapeHtml(head.name)}" data-amount="${head.setAmount / 100}">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor"/></svg>
+              </button>
+              <button class="action-icon-btn delete delete-head-btn" title="Delete Expenditure Head" data-head-id="${head.id}">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke="currentColor"/></svg>
+              </button>
             </div>
           </div>
+        </td>
 
-          <!-- Progress Bar -->
-          <div class="progress-track" title="${percent}% of budget spent">
-            <div class="progress-fill ${isOverspent ? 'overspent' : ''}" style="width: ${percent}%;"></div>
-          </div>
+        <!-- Column 2: Set Amount -->
+        <td class="col-set-amount-cell">
+          <span class="col-set-amount-val">${SpendlyStore.formatINR(head.setAmount)}</span>
+        </td>
 
-          <!-- Remaining / Overspent Pill -->
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            ${isOverspent ? `
-              <span class="badge badge-rose">Overspent by ${SpendlyStore.formatINR(head.overspent)}</span>
-            ` : `
-              <span class="badge badge-emerald">Remaining: ${SpendlyStore.formatINR(head.remaining)}</span>
-            `}
-            <button class="btn btn-sm btn-primary add-entry-btn" data-head-id="${head.id}" data-head-name="${this.escapeHtml(head.name)}">
-              <svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor"/></svg>
-              Add Entry
-            </button>
-          </div>
-
-          <!-- Entries List -->
-          <div class="entries-container">
+        <!-- Column 3: Spent / Expense Entries with Edit & Delete options -->
+        <td class="col-spent-cell">
+          <div class="col-entries-list">
             ${head.entries.length === 0 ? `
-              <div style="text-align: center; padding: 16px; color: var(--text-muted); font-size: 13px;">
-                No spending entries in this head yet.
+              <div style="color: var(--text-muted); font-size: 12px; font-style: italic; padding: 4px 0;">
+                No spending entries yet
               </div>
             ` : head.entries.map(e => `
-              <div class="entry-row" data-entry-id="${e.id}">
-                <div class="entry-left">
-                  <span class="entry-desc">${this.escapeHtml(e.description)}</span>
-                  <span class="entry-meta">${SpendlyStore.formatDateTime(e.created_at)}</span>
+              <div class="own-expense-entry-row" data-entry-id="${e.id}">
+                <div class="own-expense-entry-info">
+                  <span class="own-expense-entry-desc">${this.escapeHtml(e.description)}</span>
+                  <span class="own-expense-entry-meta">${SpendlyStore.formatDateTime(e.created_at)}</span>
                 </div>
-                <div class="entry-right">
-                  <span class="entry-amount">${SpendlyStore.formatINR(e.amount)}</span>
-                  <button class="action-icon-btn edit-entry-btn" title="Edit Entry" data-entry-id="${e.id}" data-desc="${this.escapeHtml(e.description)}" data-amount="${e.amount / 100}">
+                <div class="own-expense-entry-right">
+                  <span class="own-expense-entry-amount">${SpendlyStore.formatINR(e.amount)}</span>
+                  <button class="action-icon-btn edit-entry-btn" title="Edit Spending Entry" data-entry-id="${e.id}" data-desc="${this.escapeHtml(e.description)}" data-amount="${e.amount / 100}">
                     <svg viewBox="0 0 24 24" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor"/></svg>
                   </button>
-                  <button class="action-icon-btn delete delete-entry-btn" title="Delete Entry" data-entry-id="${e.id}">
+                  <button class="action-icon-btn delete delete-entry-btn" title="Delete Spending Entry" data-entry-id="${e.id}">
                     <svg viewBox="0 0 24 24" fill="none"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke="currentColor"/></svg>
                   </button>
                 </div>
               </div>
             `).join('')}
+            <button class="add-entry-table-btn add-entry-btn" data-head-id="${head.id}" data-head-name="${this.escapeHtml(head.name)}">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2"/></svg>
+              Add Entry
+            </button>
           </div>
-        </div>
-      </div>
+        </td>
+
+        <!-- Column 4: Remaining / Overspent -->
+        <td class="col-remaining-cell">
+          <div class="col-remaining-content">
+            <span class="col-remaining-val ${isOverspent ? 'overspent' : 'remaining'}">
+              ${remainingText}
+            </span>
+            <span style="font-size: 12px; color: var(--text-muted);">
+              Total Spent: <strong>${SpendlyStore.formatINR(head.spent)}</strong>
+            </span>
+          </div>
+        </td>
+      </tr>
     `;
   },
 
@@ -374,10 +388,10 @@ const SpendlyOwnExpensesView = {
 
   showEditHeadModal(headId, currentName, currentAmount) {
     SpendlyApp.showModal({
-      title: 'Edit Expense Head',
+      title: 'Edit Expenditure Head',
       renderBody: () => `
         <div class="form-group">
-          <label class="form-label" for="edit-head-name">Expense Head Name</label>
+          <label class="form-label" for="edit-head-name">Expenditure Head Name</label>
           <input type="text" id="edit-head-name" class="form-input" value="${this.escapeHtml(currentName)}" required />
         </div>
         <div class="form-group">
@@ -386,6 +400,9 @@ const SpendlyOwnExpensesView = {
             <span class="currency-prefix">₹</span>
             <input type="number" id="edit-head-amount" class="form-input" value="${currentAmount}" min="0" step="0.01" required />
           </div>
+          <span style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+            Negative amounts will automatically be converted to positive values.
+          </span>
         </div>
       `,
       confirmText: 'Save Changes',
@@ -393,9 +410,14 @@ const SpendlyOwnExpensesView = {
         const name = document.getElementById('edit-head-name').value.trim();
         const setAmount = parseFloat(document.getElementById('edit-head-amount').value);
 
+        if (!name) {
+          SpendlyApp.showToast({ type: 'error', title: 'Validation', message: 'Expenditure head name is required.' });
+          return;
+        }
+
         try {
-          await SpendlyAPI.put(`/personal/heads/${headId}`, { name, setAmount: isNaN(setAmount) ? 0 : setAmount });
-          SpendlyApp.showToast({ type: 'success', title: 'Saved', message: 'Expense head updated.' });
+          await SpendlyAPI.put(`/personal/heads/${headId}`, { name, setAmount: isNaN(setAmount) ? 0 : Math.abs(setAmount) });
+          SpendlyApp.showToast({ type: 'success', title: 'Updated', message: 'Expenditure head updated successfully.' });
           close();
           this.loadDashboard();
         } catch (err) {
@@ -439,7 +461,7 @@ const SpendlyOwnExpensesView = {
         }
 
         try {
-          await SpendlyAPI.post('/personal/expenses', { headId, description, amount });
+          await SpendlyAPI.post('/personal/expenses', { headId, description, amount: Math.abs(amount) });
           SpendlyApp.showToast({ type: 'success', title: 'Added', message: `Spending entry recorded in ${headName}.` });
           close();
           this.loadDashboard();
@@ -464,6 +486,9 @@ const SpendlyOwnExpensesView = {
             <span class="currency-prefix">₹</span>
             <input type="number" id="edit-entry-amount" class="form-input" value="${currentAmount}" min="0.01" step="0.01" required />
           </div>
+          <span style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+            Negative amounts will automatically be converted to positive values. Original date/time is preserved.
+          </span>
         </div>
       `,
       confirmText: 'Update Entry',
@@ -471,9 +496,18 @@ const SpendlyOwnExpensesView = {
         const description = document.getElementById('edit-entry-desc').value.trim();
         const amount = parseFloat(document.getElementById('edit-entry-amount').value);
 
+        if (!description) {
+          SpendlyApp.showToast({ type: 'error', title: 'Validation', message: 'Description is required.' });
+          return;
+        }
+        if (isNaN(amount) || amount === 0) {
+          SpendlyApp.showToast({ type: 'error', title: 'Validation', message: 'Please enter a valid amount.' });
+          return;
+        }
+
         try {
-          await SpendlyAPI.put(`/personal/expenses/${entryId}`, { description, amount });
-          SpendlyApp.showToast({ type: 'success', title: 'Updated', message: 'Spending entry updated.' });
+          await SpendlyAPI.put(`/personal/expenses/${entryId}`, { description, amount: Math.abs(amount) });
+          SpendlyApp.showToast({ type: 'success', title: 'Updated', message: 'Spending entry updated successfully.' });
           close();
           this.loadDashboard();
         } catch (err) {

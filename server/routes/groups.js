@@ -100,7 +100,27 @@ router.post('/:id/members/:userId/approve-leave', async (req, res) => {
   }
 });
 
-// 10. Delete group (Admin only, after billing)
+// 10. Admin rejects leave request (Part 10)
+router.post('/:id/members/:userId/reject-leave', async (req, res) => {
+  try {
+    const result = await groupService.rejectLeaveRequest(req.user.id, req.params.id, req.params.userId);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// 11. Remove group from user's account after billing (Part 5)
+router.post('/:id/remove-from-account', async (req, res) => {
+  try {
+    const result = await groupService.removeGroupFromAccount(req.user.id, req.params.id);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// 12. Delete group (Admin only, after billing)
 router.delete('/:id', async (req, res) => {
   try {
     const result = await groupService.deleteGroup(req.user.id, req.params.id);

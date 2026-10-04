@@ -157,9 +157,11 @@ const SpendlySplitItView = {
 
   renderGroupDetailContent() {
     const container = document.getElementById('group-detail-container');
-    const { group, activeCycle, latestCycle, hasActiveCycle, members, expenses, liveTotals, latestBill, activeSettlements } = this.groupDetails;
+    const { group, activeCycle, latestCycle, hasActiveCycle, canRemoveFromAccount, members, expenses, liveTotals, latestBill, activeSettlements } = this.groupDetails;
     const isAdmin = group.currentUserRole === 'admin';
     const currentUserId = SpendlyStore.state.user.id;
+    const currentMember = members.find(m => m.userId === currentUserId);
+    const pendingLeaveMembers = members.filter(m => m.leaveRequested);
 
     // Group expenses by member
     const expensesByMember = new Map();
@@ -170,7 +172,7 @@ const SpendlySplitItView = {
     });
 
     container.innerHTML = `
-      <!-- Header with Navigation and Admin Actions -->
+      <!-- Header with Navigation and Admin / Member Actions -->
       <div style="margin-bottom: 20px;">
         <button class="btn btn-secondary btn-sm" onclick="window.location.hash = '#/split-it'" style="margin-bottom: 12px;">
           &larr; Back to All Groups
@@ -191,25 +193,33 @@ const SpendlySplitItView = {
           </p>
         </div>
 
-        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+          ${canRemoveFromAccount ? `
+            <button class="btn btn-secondary btn-sm" id="remove-group-from-account-btn" title="Remove group from your own account">
+              Remove Group From My Account
+            </button>
+          ` : ''}
+
           ${isAdmin ? `
-            <button class="btn btn-secondary" id="invite-member-btn" title="Invite new member">
-              <svg viewBox="0 0 24 24" fill="none"><path d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" stroke="currentColor"/></svg>
+            <button class="btn btn-secondary btn-sm" id="invite-member-btn" title="Invite new member">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" stroke="currentColor" stroke-width="2"/></svg>
               Invite Member
             </button>
             ${hasActiveCycle ? `
-              <button class="btn btn-primary" id="group-bill-btn">
-                <svg viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor"/></svg>
+              <button class="btn btn-primary btn-sm" id="group-bill-btn">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" stroke-width="2"/></svg>
                 Bill This Cycle
               </button>
             ` : `
-              <button class="btn btn-primary" id="group-new-cycle-btn">
+              <button class="btn btn-primary btn-sm" id="group-new-cycle-btn">
                 Start a New Cycle
               </button>
             `}
             <button class="btn btn-danger btn-sm" id="delete-group-btn" title="Delete Group">
               Delete Group
             </button>
+          ` : (currentMember && currentMember.leaveRequested) ? `
+            <span class="badge badge-amber" style="padding: 6px 12px; font-size: 12px;">Leave Requested (Pending Admin)</span>
           ` : `
             <button class="btn btn-secondary btn-sm" id="request-leave-btn">
               Request to Leave
@@ -218,37 +228,28 @@ const SpendlySplitItView = {
         </div>
       </div>
 
-      <!-- Live Calculations Summary Banner -->
-      <div class="group-live-banner">
-        <div>
-          <span class="kpi-label">Total Group Spent</span>
-          <div class="kpi-value">${SpendlyStore.formatINR(liveTotals.totalSpent)}</div>
-          <span class="kpi-subtext">${expenses.length} transaction(s) recorded</span>
+      <!-- Admin Pending Leave Request Notice Banner (Part 10) -->
+      ${isAdmin && pendingLeaveMembers.length > 0 ? `
+        <div class="leave-request-banner">
+          <div class="leave-request-banner-text">
+            ⚠️ <strong>Leave Request Pending:</strong>
+            ${pendingLeaveMembers.map(m => `
+              <span>${this.escapeHtml(m.displayName || m.username)} has requested to leave "${this.escapeHtml(group.name)}".</span>
+            `).join(' ')}
+            ${hasActiveCycle && expenses.length > 0 ? '<br><small style="color: var(--accent-warning);">Note: Complete billing before approving leave requests.</small>' : ''}
+          </div>
+          <div class="leave-request-banner-actions">
+            ${pendingLeaveMembers.map(m => `
+              <button class="btn btn-sm btn-primary approve-leave-action-btn" data-user-id="${m.userId}">
+                Approve Leave
+              </button>
+              <button class="btn btn-sm btn-secondary reject-leave-action-btn" data-user-id="${m.userId}">
+                Reject
+              </button>
+            `).join('')}
+          </div>
         </div>
-
-        <div>
-          <span class="kpi-label">Equal Share Per Person</span>
-          <div class="kpi-value" style="color: var(--accent-cyan);">${SpendlyStore.formatINR(liveTotals.equalShare)}</div>
-          <span class="kpi-subtext">Across ${members.length} active member(s)</span>
-        </div>
-
-        <div>
-          <span class="kpi-label">Your Net Contribution</span>
-          ${(() => {
-            const currentMember = members.find(m => m.userId === currentUserId);
-            const mySpent = currentMember ? currentMember.spent : 0;
-            const myBal = currentMember ? currentMember.balance : 0;
-            return `
-              <div class="kpi-value" style="color: ${myBal >= 0 ? 'var(--accent-primary)' : 'var(--accent-danger)'};">
-                ${SpendlyStore.formatINR(mySpent)}
-              </div>
-              <span class="kpi-subtext">
-                ${myBal >= 0 ? `Receivable: +${SpendlyStore.formatINR(myBal)}` : `Owed: -${SpendlyStore.formatINR(-myBal)}`}
-              </span>
-            `;
-          })()}
-        </div>
-      </div>
+      ` : ''}
 
       ${!hasActiveCycle ? `
         <div class="card" style="border-left: 4px solid var(--accent-cyan); margin-bottom: 24px;">
@@ -259,171 +260,271 @@ const SpendlySplitItView = {
         </div>
       ` : ''}
 
-      <!-- Members Columns (Section 30) -->
-      <h2 style="font-family: var(--font-heading); font-size: 20px; font-weight: 700; margin-bottom: 16px;">
-        Member Expense Columns
-      </h2>
-
-      <div class="group-members-grid">
-        ${members.map(m => {
-          const isMe = m.userId === currentUserId;
-          const memberExpenses = expensesByMember.get(m.userId) || [];
-          const balanceClass = m.balance > 0 ? 'positive' : m.balance < 0 ? 'negative' : 'zero';
-          const balanceText = m.balance > 0 
-            ? `+${SpendlyStore.formatINR(m.balance)}` 
-            : m.balance < 0 
-              ? `-${SpendlyStore.formatINR(-m.balance)}` 
-              : 'Settled';
-
-          return `
-            <div class="member-column-card ${isMe ? 'current-user' : ''}">
-              <div class="member-col-header">
-                <div class="member-col-user">
-                  ${m.avatarUrl ? `
-                    <img src="${m.avatarUrl}" class="user-avatar-img" style="width: 32px; height: 32px;" />
-                  ` : `
-                    <div class="user-avatar-placeholder" style="width: 32px; height: 32px; font-size: 12px;">
-                      ${(m.temporaryName || m.displayName || m.username)[0].toUpperCase()}
-                    </div>
-                  `}
-                  <div>
-                    <div class="member-display-name">
-                      ${this.escapeHtml(m.temporaryName || m.displayName || m.username)}
-                      ${isMe ? '<span style="font-size: 11px; color: var(--accent-primary); font-weight: 600;">(You)</span>' : ''}
-                    </div>
-                    <div class="member-username-tag">@${this.escapeHtml(m.username)}</div>
-                  </div>
-                </div>
-
-                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
-                  <span class="member-balance-pill ${balanceClass}" title="Net balance">${balanceText}</span>
-                  ${isAdmin && !isMe ? `
-                    <button class="action-icon-btn admin-temp-name-btn" title="Set group temporary name" data-user-id="${m.userId}" data-current="${this.escapeHtml(m.temporaryName || '')}">
-                      <svg viewBox="0 0 24 24" fill="none"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" stroke="currentColor"/></svg>
-                    </button>
-                  ` : ''}
-                </div>
-              </div>
-
-              <div class="member-col-body">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                  <span style="font-size: 13px; color: var(--text-secondary);">Spent: <strong>${SpendlyStore.formatINR(m.spent)}</strong></span>
-                  ${isMe && hasActiveCycle ? `
-                    <button class="btn btn-sm btn-primary" id="add-my-expense-btn">
-                      + Add Expense
-                    </button>
-                  ` : ''}
-                </div>
-
-                <!-- Expenses list for this member -->
-                <div class="entries-container">
-                  ${memberExpenses.length === 0 ? `
-                    <div style="text-align: center; padding: 20px 10px; color: var(--text-muted); font-size: 12px;">
-                      No expenses added by this member.
-                    </div>
-                  ` : memberExpenses.map(e => `
-                    <div class="entry-row">
-                      <div class="entry-left">
-                        <span class="entry-desc">${this.escapeHtml(e.description)}</span>
-                        <span class="entry-meta">${SpendlyStore.formatDateTime(e.created_at)}</span>
+      <!-- Member Expense Columns Table (Part 9) - Exactly N Columns for N Members -->
+      <div class="split-it-table-card">
+        <div class="split-it-table-container">
+          <table class="split-it-table" style="min-width: ${Math.max(680, members.length * 240)}px;">
+            <thead>
+              <tr>
+                ${members.map(m => {
+                  const isMe = m.userId === currentUserId;
+                  const displayName = this.escapeHtml(m.temporaryName || m.displayName || m.username);
+                  return `
+                    <th class="${isMe ? 'is-me' : ''}" style="width: ${100 / members.length}%;">
+                      <div class="member-th-header">
+                        <div class="member-th-top">
+                          <div class="member-th-user">
+                            ${m.avatarUrl ? `
+                              <img src="${m.avatarUrl}" class="user-avatar-img" style="width: 32px; height: 32px;" />
+                            ` : `
+                              <div class="user-avatar-placeholder" style="width: 32px; height: 32px; font-size: 12px;">
+                                ${displayName[0].toUpperCase()}
+                              </div>
+                            `}
+                            <div>
+                              <div class="member-th-name">
+                                ${displayName}
+                                ${isMe ? '<span style="font-size: 11px; color: var(--accent-primary); font-weight: 600;"> (You)</span>' : ''}
+                              </div>
+                              <div class="member-th-tag">@${this.escapeHtml(m.username)}</div>
+                            </div>
+                          </div>
+                          ${isAdmin && !isMe ? `
+                            <button class="action-icon-btn admin-temp-name-btn" title="Set group temporary name" data-user-id="${m.userId}" data-current="${this.escapeHtml(m.temporaryName || '')}">
+                              <svg viewBox="0 0 24 24" fill="none"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" stroke="currentColor"/></svg>
+                            </button>
+                          ` : ''}
+                        </div>
+                        <div class="member-th-spent-badge">
+                          <span>Total Spent</span>
+                          <strong>${SpendlyStore.formatINR(m.spent)}</strong>
+                        </div>
                       </div>
-                      <div class="entry-right">
-                        <span class="entry-amount">${SpendlyStore.formatINR(e.amount)}</span>
+                    </th>
+                  `;
+                }).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                ${members.map(m => {
+                  const isMe = m.userId === currentUserId;
+                  const memberExpenses = expensesByMember.get(m.userId) || [];
+                  return `
+                    <td class="${isMe ? 'is-me' : ''}">
+                      <div class="member-col-expenses">
+                        ${memberExpenses.length === 0 ? `
+                          <div style="text-align: center; padding: 24px 10px; color: var(--text-muted); font-size: 12px; font-style: italic;">
+                            No expenses entered
+                          </div>
+                        ` : memberExpenses.map(e => `
+                          <div class="group-exp-row" data-exp-id="${e.id}">
+                            <div class="group-exp-info">
+                              <span class="group-exp-desc">${this.escapeHtml(e.description)}</span>
+                              <span class="group-exp-meta">${SpendlyStore.formatDateTime(e.created_at)}</span>
+                            </div>
+                            <div class="group-exp-right">
+                              <span class="group-exp-amount">${SpendlyStore.formatINR(e.amount)}</span>
+                              ${isMe && hasActiveCycle ? `
+                                <button class="action-icon-btn edit-group-exp-btn" title="Edit Expense" data-exp-id="${e.id}" data-desc="${this.escapeHtml(e.description)}" data-amount="${e.amount / 100}">
+                                  <svg viewBox="0 0 24 24" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor"/></svg>
+                                </button>
+                                <button class="action-icon-btn delete delete-group-exp-btn" title="Delete Expense" data-exp-id="${e.id}">
+                                  <svg viewBox="0 0 24 24" fill="none"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke="currentColor"/></svg>
+                                </button>
+                              ` : ''}
+                            </div>
+                          </div>
+                        `).join('')}
+
                         ${isMe && hasActiveCycle ? `
-                          <button class="action-icon-btn edit-group-exp-btn" data-exp-id="${e.id}" data-desc="${this.escapeHtml(e.description)}" data-amount="${e.amount / 100}">
-                            <svg viewBox="0 0 24 24" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor"/></svg>
-                          </button>
-                          <button class="action-icon-btn delete delete-group-exp-btn" data-exp-id="${e.id}">
-                            <svg viewBox="0 0 24 24" fill="none"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke="currentColor"/></svg>
+                          <button class="add-group-expense-col-btn add-my-expense-btn">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2"/></svg>
+                            Add Expense
                           </button>
                         ` : ''}
                       </div>
-                    </div>
-                  `).join('')}
-                </div>
-              </div>
-            </div>
-          `;
-        }).join('')}
+                    </td>
+                  `;
+                }).join('')}
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      <!-- Settlements Panel (Sections 36 - 40) -->
-      <div class="settlements-panel">
-        <div class="settlements-title">
-          <span>Settlements & Payment Status</span>
-          ${activeSettlements && activeSettlements.length > 0 ? `
-            <span class="badge badge-emerald">From Latest Bill #${latestBill ? latestBill.cycle_number : ''}</span>
-          ` : `
-            <span class="badge badge-secondary">Real-Time Projected</span>
-          `}
+      <!-- All Group Calculations Displayed at BOTTOM of the page (Part 9) -->
+      <div class="bottom-calculations-section">
+        <h3 class="bottom-section-title">Group Billing & Settlement Calculations</h3>
+
+        <!-- Top KPI Grid -->
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <span class="kpi-label">Total Group Bill</span>
+            <span class="kpi-value">${SpendlyStore.formatINR(liveTotals.totalSpent)}</span>
+            <span class="kpi-subtext">${expenses.length} expense transaction(s)</span>
+          </div>
+
+          <div class="kpi-card cyan">
+            <span class="kpi-label">Bill Per Active Member</span>
+            <span class="kpi-value" style="color: var(--accent-cyan);">${SpendlyStore.formatINR(liveTotals.equalShare)}</span>
+            <span class="kpi-subtext">Equal share for ${members.length} member(s)</span>
+          </div>
+
+          <div class="kpi-card">
+            <span class="kpi-label">Your Net Position</span>
+            ${(() => {
+              const mySpent = currentMember ? currentMember.spent : 0;
+              const myBal = currentMember ? currentMember.balance : 0;
+              return `
+                <span class="kpi-value" style="color: ${myBal >= 0 ? 'var(--accent-primary)' : 'var(--accent-danger)'};">
+                  ${myBal >= 0 ? `+${SpendlyStore.formatINR(myBal)}` : `-${SpendlyStore.formatINR(-myBal)}`}
+                </span>
+                <span class="kpi-subtext">
+                  Spent ${SpendlyStore.formatINR(mySpent)} (${myBal >= 0 ? 'Receivable' : 'Owed'})
+                </span>
+              `;
+            })()}
+          </div>
         </div>
 
-        ${activeSettlements && activeSettlements.length > 0 ? `
-          <div>
-            ${activeSettlements.map(s => {
-              const isPayer = s.payer_id === currentUserId;
-              const isReceiver = s.receiver_id === currentUserId;
-              const payerName = s.payer_name || s.payer_username;
-              const receiverName = s.receiver_name || s.receiver_username;
-
-              return `
-                <div class="settlement-item">
-                  <div class="settlement-instruction">
-                    <strong>${this.escapeHtml(payerName)}</strong>
-                    <span class="settlement-arrow">&rarr;</span>
-                    <strong>${this.escapeHtml(receiverName)}</strong>
-                  </div>
-
-                  <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
-                    <span class="settlement-amount">${SpendlyStore.formatINR(s.amount)}</span>
-                    <span class="badge ${s.status === 'completed' ? 'badge-emerald' : s.status === 'pending_confirmation' ? 'badge-cyan' : 'badge-amber'}">
-                      ${s.status === 'completed' ? '✓ Completed' : s.status === 'pending_confirmation' ? '⏳ Pending Confirmation' : 'Pending'}
-                    </span>
-
-                    ${isPayer && s.status === 'pending' ? `
-                      <button class="btn btn-sm btn-primary mark-paid-btn" data-settlement-id="${s.id}">
-                        Mark as Paid
-                      </button>
-                    ` : ''}
-
-                    ${isReceiver && s.status === 'pending_confirmation' ? `
-                      <button class="btn btn-sm btn-primary confirm-received-btn" data-settlement-id="${s.id}">
-                        Confirm Received
-                      </button>
-                      <button class="btn btn-sm btn-secondary dispute-btn" data-settlement-id="${s.id}">
-                        Not Received
-                      </button>
-                    ` : ''}
-                  </div>
-                </div>
-              `;
-            }).join('')}
+        <!-- Member-by-Member Breakdown Table (Part 9) -->
+        <div class="group-breakdown-card">
+          <div style="font-family: var(--font-heading); font-size: 16px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px;">
+            Member Spending & Balance Breakdown
           </div>
-        ` : liveTotals.suggestedSettlements.length > 0 ? `
-          <div>
-            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">
-              These are live settlement suggestions. Official settlement tracking begins once billing is generated.
-            </p>
-            ${liveTotals.suggestedSettlements.map(s => {
-              const payer = members.find(m => m.userId === s.payerId);
-              const receiver = members.find(m => m.userId === s.receiverId);
-              return `
-                <div class="settlement-item">
-                  <div class="settlement-instruction">
-                    <strong>${this.escapeHtml(payer ? (payer.temporaryName || payer.displayName || payer.username) : 'Payer')}</strong>
-                    <span class="settlement-arrow">&rarr;</span>
-                    <strong>${this.escapeHtml(receiver ? (receiver.temporaryName || receiver.displayName || receiver.username) : 'Receiver')}</strong>
+          <div class="table-responsive">
+            <table class="group-breakdown-table">
+              <thead>
+                <tr>
+                  <th>Member</th>
+                  <th>Role</th>
+                  <th style="text-align: right;">Total Spent</th>
+                  <th style="text-align: right;">Equal Share</th>
+                  <th style="text-align: right;">Net Balance</th>
+                  <th style="text-align: right;">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${members.map(m => {
+                  const isMe = m.userId === currentUserId;
+                  const displayName = this.escapeHtml(m.temporaryName || m.displayName || m.username);
+                  const bal = m.balance;
+                  return `
+                    <tr>
+                      <td>
+                        <strong>${displayName}</strong>
+                        ${isMe ? '<span style="font-size: 11px; color: var(--accent-primary); font-weight: 600;"> (You)</span>' : ''}
+                        <span style="font-size: 11px; color: var(--text-muted); display: block;">@${this.escapeHtml(m.username)}</span>
+                      </td>
+                      <td>
+                        <span class="badge ${m.role === 'admin' ? 'badge-amber' : 'badge-secondary'}" style="font-size: 11px;">
+                          ${m.role === 'admin' ? 'Admin' : 'Member'}
+                        </span>
+                      </td>
+                      <td style="text-align: right; font-family: var(--font-heading); font-weight: 700;">
+                        ${SpendlyStore.formatINR(m.spent)}
+                      </td>
+                      <td style="text-align: right; font-family: var(--font-heading);">
+                        ${SpendlyStore.formatINR(liveTotals.equalShare)}
+                      </td>
+                      <td style="text-align: right; font-family: var(--font-heading); font-weight: 700; color: ${bal > 0 ? 'var(--accent-primary)' : bal < 0 ? 'var(--accent-danger)' : 'var(--text-muted)'};">
+                        ${bal > 0 ? `+${SpendlyStore.formatINR(bal)}` : bal < 0 ? `-${SpendlyStore.formatINR(-bal)}` : '₹0.00'}
+                      </td>
+                      <td style="text-align: right;">
+                        <span class="badge ${bal > 0 ? 'badge-emerald' : bal < 0 ? 'badge-rose' : 'badge-secondary'}">
+                          ${bal > 0 ? 'Gets Back' : bal < 0 ? 'Needs to Pay' : 'Settled'}
+                        </span>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Settlements Panel: Who Needs to Pay Whom (Part 9) -->
+        <div class="settlements-panel">
+          <div class="settlements-title">
+            <span>Settlement Information (Who Pays Whom)</span>
+            ${activeSettlements && activeSettlements.length > 0 ? `
+              <span class="badge badge-emerald">From Bill #${latestBill ? latestBill.cycle_number : ''}</span>
+            ` : `
+              <span class="badge badge-secondary">Real-Time Projected</span>
+            `}
+          </div>
+
+          ${activeSettlements && activeSettlements.length > 0 ? `
+            <div>
+              ${activeSettlements.map(s => {
+                const isPayer = s.payer_id === currentUserId;
+                const isReceiver = s.receiver_id === currentUserId;
+                const payerName = s.payer_name || s.payer_username;
+                const receiverName = s.receiver_name || s.receiver_username;
+
+                return `
+                  <div class="settlement-item">
+                    <div class="settlement-instruction">
+                      <strong>${this.escapeHtml(payerName)}</strong>
+                      <span class="settlement-arrow">&rarr;</span>
+                      <strong>${this.escapeHtml(receiverName)}</strong>
+                    </div>
+
+                    <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+                      <span class="settlement-amount">${SpendlyStore.formatINR(s.amount)}</span>
+                      <span class="badge ${s.status === 'completed' ? 'badge-emerald' : s.status === 'pending_confirmation' ? 'badge-cyan' : 'badge-amber'}">
+                        ${s.status === 'completed' ? '✓ Completed' : s.status === 'pending_confirmation' ? '⏳ Pending Confirmation' : 'Pending'}
+                      </span>
+
+                      ${isPayer && s.status === 'pending' ? `
+                        <button class="btn btn-sm btn-primary mark-paid-btn" data-settlement-id="${s.id}">
+                          Mark as Paid
+                        </button>
+                      ` : ''}
+
+                      ${isReceiver && s.status === 'pending_confirmation' ? `
+                        <button class="btn btn-sm btn-primary confirm-received-btn" data-settlement-id="${s.id}">
+                          Confirm Received
+                        </button>
+                        <button class="btn btn-sm btn-secondary dispute-btn" data-settlement-id="${s.id}">
+                          Not Received
+                        </button>
+                      ` : ''}
+                    </div>
                   </div>
-                  <span class="settlement-amount">${SpendlyStore.formatINR(s.amount)}</span>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        ` : `
-          <div style="text-align: center; padding: 20px; color: var(--text-muted); font-size: 14px;">
-            All members are even! No settlements required.
-          </div>
-        `}
+                `;
+              }).join('')}
+            </div>
+          ` : liveTotals.suggestedSettlements && liveTotals.suggestedSettlements.length > 0 ? `
+            <div>
+              <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px;">
+                These are live settlement suggestions. Official settlement tracking begins once billing is generated.
+              </p>
+              ${liveTotals.suggestedSettlements.map(s => {
+                const payer = members.find(m => m.userId === s.payerId);
+                const receiver = members.find(m => m.userId === s.receiverId);
+                return `
+                  <div class="settlement-item">
+                    <div class="settlement-instruction">
+                      <strong>${this.escapeHtml(payer ? (payer.temporaryName || payer.displayName || payer.username) : 'Payer')}</strong>
+                      <span class="settlement-arrow">&rarr;</span>
+                      <strong>${this.escapeHtml(receiver ? (receiver.temporaryName || receiver.displayName || receiver.username) : 'Receiver')}</strong>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                      <span class="settlement-amount">${SpendlyStore.formatINR(s.amount)}</span>
+                      <span class="badge badge-secondary">Projected on Billing</span>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : `
+            <div style="text-align: center; padding: 20px; color: var(--text-muted); font-size: 14px;">
+              All members are even! No settlements required.
+            </div>
+          `}
+        </div>
       </div>
     `;
 
@@ -433,11 +534,60 @@ const SpendlySplitItView = {
   attachGroupDetailEvents() {
     const groupId = this.currentGroupId;
 
-    // Add My Expense button
-    const addExpenseBtn = document.getElementById('add-my-expense-btn');
-    if (addExpenseBtn) {
-      addExpenseBtn.onclick = () => this.showAddGroupExpenseModal(groupId);
+    // Add My Expense button (matches all column triggers for user)
+    document.querySelectorAll('.add-my-expense-btn').forEach(btn => {
+      btn.onclick = () => this.showAddGroupExpenseModal(groupId);
+    });
+
+    // Remove Group From My Account (Part 5)
+    const removeAccountBtn = document.getElementById('remove-group-from-account-btn');
+    if (removeAccountBtn) {
+      removeAccountBtn.onclick = () => {
+        SpendlyApp.showConfirmModal({
+          title: 'Remove Group From My Account?',
+          message: 'This will remove the group from your active account while preserving all historical bills. Other members will not be affected. You cannot undo this.',
+          confirmText: 'Remove Group',
+          isDanger: true,
+          onConfirm: async (close) => {
+            try {
+              await SpendlyAPI.post(`/groups/${groupId}/remove-from-account`);
+              SpendlyApp.showToast({ type: 'success', title: 'Group Removed', message: 'Group was successfully removed from your account.' });
+              close();
+              window.location.hash = '#/split-it';
+            } catch (err) {
+              SpendlyApp.showToast({ type: 'error', title: 'Error', message: err.message });
+            }
+          }
+        });
+      };
     }
+
+    // Admin: Approve / Reject leave requests from banner (Part 10)
+    document.querySelectorAll('.approve-leave-action-btn').forEach(btn => {
+      btn.onclick = async () => {
+        const targetUserId = btn.getAttribute('data-user-id');
+        try {
+          await SpendlyAPI.post(`/groups/${groupId}/members/${targetUserId}/approve-leave`);
+          SpendlyApp.showToast({ type: 'success', title: 'Leave Approved', message: 'Member leave request was approved.' });
+          this.loadGroupDetail(groupId);
+        } catch (err) {
+          SpendlyApp.showToast({ type: 'error', title: 'Action Prohibited', message: err.message });
+        }
+      };
+    });
+
+    document.querySelectorAll('.reject-leave-action-btn').forEach(btn => {
+      btn.onclick = async () => {
+        const targetUserId = btn.getAttribute('data-user-id');
+        try {
+          await SpendlyAPI.post(`/groups/${groupId}/members/${targetUserId}/reject-leave`);
+          SpendlyApp.showToast({ type: 'info', title: 'Leave Declined', message: 'Member leave request was declined.' });
+          this.loadGroupDetail(groupId);
+        } catch (err) {
+          SpendlyApp.showToast({ type: 'error', title: 'Error', message: err.message });
+        }
+      };
+    });
 
     // Edit Group Expense buttons
     document.querySelectorAll('.edit-group-exp-btn').forEach(btn => {

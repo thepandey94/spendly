@@ -383,18 +383,18 @@ dialog.spendly-modal::backdrop {
   max-width: 380px;
 }
 
-/* In-App Notifications Drawer / Dropdown */
+/* In-App Notifications Drawer / Dropdown (Part 7 Mobile Fix) */
 .notifications-dropdown {
   position: absolute;
-  top: calc(var(--header-height) + 8px);
-  right: 20px;
+  top: calc(100% + 8px);
+  right: 0;
   width: 380px;
   max-width: 90vw;
   background: var(--bg-card);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  z-index: 90;
+  box-shadow: var(--shadow-lg), 0 10px 30px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
   display: none;
   flex-direction: column;
   max-height: 480px;
@@ -403,6 +403,20 @@ dialog.spendly-modal::backdrop {
 }
 .notifications-dropdown.active {
   display: flex;
+}
+
+@media (max-width: 600px) {
+  .notifications-dropdown {
+    position: fixed;
+    top: calc(var(--header-height) + 8px);
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - var(--header-height) - 24px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+    z-index: 1000;
+  }
 }
 .notifications-header {
   padding: 16px 20px;

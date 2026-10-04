@@ -243,3 +243,15 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
     keys_json TEXT NOT NULL,
     created_at BIGINT NOT NULL
 );
+
+-- 18. User Hidden Groups (Personal Removal of Billed Groups)
+CREATE TABLE IF NOT EXISTS user_hidden_groups (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    created_at BIGINT NOT NULL,
+    UNIQUE(user_id, group_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_hidden_groups_user ON user_hidden_groups(user_id);
+
