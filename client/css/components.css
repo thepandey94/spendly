@@ -301,6 +301,13 @@
 }
 
 /* Native <dialog> Modal Styles */
+dialog.spendly-modal:not([open]) {
+  display: none !important;
+}
+dialog.spendly-modal[open] {
+  display: flex;
+  flex-direction: column;
+}
 dialog.spendly-modal {
   margin: auto;
   border: 1px solid var(--border-card);
@@ -314,8 +321,6 @@ dialog.spendly-modal {
   box-shadow: var(--shadow-xl);
   outline: none;
   animation: modalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  display: flex;
-  flex-direction: column;
   overflow: hidden;
 }
 dialog.spendly-modal::backdrop {
