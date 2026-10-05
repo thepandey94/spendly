@@ -7,7 +7,7 @@
     "start": "node server/index.js",
     "dev": "node server/index.js",
     "seed": "node server/db/seed.js",
-    "test": "node scratch/test-suite.js"
+    "test": "node scratch/test-suite.js && node scratch/test-profile-comprehensive.js"
   },
   "keywords": [],
   "author": "",

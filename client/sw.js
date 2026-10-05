@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spendly-cache-v6';
+const CACHE_NAME = 'spendly-cache-v7';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -23,6 +23,7 @@ const STATIC_ASSETS = [
   '/js/views/splitItView.js',
   '/js/views/billView.js',
   '/js/views/analyticsView.js',
+  '/js/imageViewer.js',
   '/js/views/profileView.js',
   '/js/app.js'
 ];
