@@ -52,7 +52,8 @@ const SpendlyAdminUserDetailsView = {
       <!-- Hero Header Card -->
       <div class="admin-user-hero">
         ${user.avatarUrl ? `
-          <img src="${user.avatarUrl}" class="admin-hero-avatar" />
+          <img src="${user.avatarUrl}" class="admin-hero-avatar" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+          <div class="admin-hero-avatar" style="display: none;">${avatarLetter}</div>
         ` : `
           <div class="admin-hero-avatar">${avatarLetter}</div>
         `}

@@ -96,6 +96,19 @@ const db = {
             CREATE INDEX IF NOT EXISTS idx_users_is_admin ON users(is_admin);
           `);
 
+          // Ensure user_avatars table exists for persistent avatar storage
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS user_avatars (
+                user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                filename TEXT NOT NULL,
+                mime_type TEXT NOT NULL,
+                image_data TEXT NOT NULL,
+                file_size INTEGER NOT NULL,
+                updated_at BIGINT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_user_avatars_filename ON user_avatars(filename);
+          `);
+
           // Ensure configured admin emails are marked as admin in DB
           if (config.ADMIN_EMAILS && config.ADMIN_EMAILS.length > 0) {
             for (const adminEmail of config.ADMIN_EMAILS) {
@@ -125,6 +138,18 @@ const db = {
             sqliteDb.exec('ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0;');
           }
           sqliteDb.exec('CREATE INDEX IF NOT EXISTS idx_users_is_admin ON users(is_admin);');
+
+          sqliteDb.exec(`
+            CREATE TABLE IF NOT EXISTS user_avatars (
+                user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+                filename TEXT NOT NULL,
+                mime_type TEXT NOT NULL,
+                image_data TEXT NOT NULL,
+                file_size INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_user_avatars_filename ON user_avatars(filename);
+          `);
         } catch (mErr) {
           // ignore
         }

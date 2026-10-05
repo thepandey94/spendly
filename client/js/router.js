@@ -118,6 +118,10 @@ const SpendlyRouter = {
       SpendlyAnalyticsView.render();
     } else if (hash === '#/profile') {
       SpendlyProfileView.render();
+    } else if (hash.startsWith('#/profile/')) {
+      const parts = hash.split('/');
+      const userId = parts[2] || null;
+      SpendlyProfileView.render(userId);
     } else {
       window.location.hash = '#/own-expenses';
     }

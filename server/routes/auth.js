@@ -4,6 +4,7 @@ const authService = require('../services/authService');
 const { authenticate } = require('../middleware/auth');
 const { uploadAvatar } = require('../middleware/upload');
 const db = require('../db/database');
+const fs = require('fs');
 
 // 1. Request registration OTP
 router.post('/register-otp', async (req, res) => {
@@ -178,13 +179,44 @@ router.put('/profile', authenticate, async (req, res) => {
   }
 });
 
-// 15. Upload profile picture
+// 15. Upload profile picture (Disk + Persistent DB storage for Render ephemerality)
 router.post('/avatar', authenticate, uploadAvatar.single('avatar'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No image file uploaded.' });
     }
-    const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+
+    const filename = req.file.filename;
+    const mimeType = req.file.mimetype || 'image/jpeg';
+    const filePath = req.file.path;
+    const fileBuffer = fs.readFileSync(filePath);
+    const base64Data = fileBuffer.toString('base64');
+    const now = Date.now();
+
+    // Persist into user_avatars table so it survives any Render reboot/redeploy
+    if (db.isPostgres) {
+      await db.prepare(`
+        INSERT INTO user_avatars (user_id, filename, mime_type, image_data, file_size, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT (user_id) 
+        DO UPDATE SET filename = EXCLUDED.filename, mime_type = EXCLUDED.mime_type, 
+                      image_data = EXCLUDED.image_data, file_size = EXCLUDED.file_size, 
+                      updated_at = EXCLUDED.updated_at
+      `).run(req.user.id, filename, mimeType, base64Data, fileBuffer.length, now);
+    } else {
+      await db.prepare(`
+        INSERT INTO user_avatars (user_id, filename, mime_type, image_data, file_size, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET
+          filename = excluded.filename,
+          mime_type = excluded.mime_type,
+          image_data = excluded.image_data,
+          file_size = excluded.file_size,
+          updated_at = excluded.updated_at
+      `).run(req.user.id, filename, mimeType, base64Data, fileBuffer.length, now);
+    }
+
+    const avatarUrl = `/uploads/avatars/${filename}`;
     const updated = await authService.updateProfile(req.user.id, { avatarUrl });
     res.json({ user: updated, avatarUrl });
   } catch (err) {

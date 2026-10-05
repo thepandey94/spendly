@@ -274,9 +274,12 @@ const SpendlySplitItView = {
                     <th class="${isMe ? 'is-me' : ''}" style="width: ${100 / members.length}%;">
                       <div class="member-th-header">
                         <div class="member-th-top">
-                          <div class="member-th-user">
+                          <div class="member-th-user" onclick="window.location.hash = '#/profile/${m.userId}'" style="cursor: pointer;" title="View ${displayName}'s profile">
                             ${m.avatarUrl ? `
-                              <img src="${m.avatarUrl}" class="user-avatar-img" style="width: 32px; height: 32px;" />
+                              <img src="${m.avatarUrl}" class="user-avatar-img" style="width: 32px; height: 32px;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                              <div class="user-avatar-placeholder" style="width: 32px; height: 32px; font-size: 12px; display: none;">
+                                ${displayName[0].toUpperCase()}
+                              </div>
                             ` : `
                               <div class="user-avatar-placeholder" style="width: 32px; height: 32px; font-size: 12px;">
                                 ${displayName[0].toUpperCase()}
@@ -414,9 +417,11 @@ const SpendlySplitItView = {
                   return `
                     <tr>
                       <td>
-                        <strong>${displayName}</strong>
-                        ${isMe ? '<span style="font-size: 11px; color: var(--accent-primary); font-weight: 600;"> (You)</span>' : ''}
-                        <span style="font-size: 11px; color: var(--text-muted); display: block;">@${this.escapeHtml(m.username)}</span>
+                        <a href="#/profile/${m.userId}" style="text-decoration: none; color: inherit; display: inline-block;" title="View ${displayName}'s profile">
+                          <strong>${displayName}</strong>
+                          ${isMe ? '<span style="font-size: 11px; color: var(--accent-primary); font-weight: 600;"> (You)</span>' : ''}
+                          <span style="font-size: 11px; color: var(--text-muted); display: block;">@${this.escapeHtml(m.username)}</span>
+                        </a>
                       </td>
                       <td>
                         <span class="badge ${m.role === 'admin' ? 'badge-amber' : 'badge-secondary'}" style="font-size: 11px;">

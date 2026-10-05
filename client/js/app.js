@@ -382,7 +382,12 @@ const SpendlyApp = {
       if (avatarContainer) {
         if (user) {
           if (user.avatar_url) {
-            avatarContainer.innerHTML = `<img src="${user.avatar_url}" class="user-avatar-img" />`;
+            avatarContainer.innerHTML = `
+              <img src="${user.avatar_url}" class="user-avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+              <div class="user-avatar-placeholder" style="display: none;">
+                ${(user.display_name || user.username || 'U')[0].toUpperCase()}
+              </div>
+            `;
           } else {
             avatarContainer.innerHTML = `
               <div class="user-avatar-placeholder">

@@ -465,14 +465,28 @@ async function updateProfile(userId, { displayName, bio, avatarUrl }) {
     WHERE id = ?
   `).run(...params);
 
-  return await db.prepare('SELECT id, email, username, display_name, bio, avatar_url, last_username_change, created_at FROM users WHERE id = ?').get(userId);
+  const updatedUser = await db.prepare('SELECT id, email, username, display_name, bio, avatar_url, is_admin, last_username_change, created_at FROM users WHERE id = ?').get(userId);
+  if (updatedUser) {
+    updatedUser.is_admin = Boolean(
+      updatedUser.is_admin ||
+      (config.ADMIN_EMAILS && config.ADMIN_EMAILS.includes((updatedUser.email || '').toLowerCase()))
+    );
+  }
+  return updatedUser;
 }
 
 /**
  * Get User by ID
  */
 async function getUserById(userId) {
-  return await db.prepare('SELECT id, email, username, display_name, bio, avatar_url, last_username_change, created_at FROM users WHERE id = ?').get(userId);
+  const user = await db.prepare('SELECT id, email, username, display_name, bio, avatar_url, is_admin, last_username_change, created_at FROM users WHERE id = ?').get(userId);
+  if (user) {
+    user.is_admin = Boolean(
+      user.is_admin ||
+      (config.ADMIN_EMAILS && config.ADMIN_EMAILS.includes((user.email || '').toLowerCase()))
+    );
+  }
+  return user;
 }
 
 /**

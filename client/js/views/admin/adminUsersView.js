@@ -125,7 +125,8 @@ const SpendlyAdminUsersView = {
                   <td data-label="User">
                     <div class="admin-user-cell">
                       ${u.avatarUrl ? `
-                        <img src="${u.avatarUrl}" class="admin-user-avatar" />
+                        <img src="${u.avatarUrl}" class="admin-user-avatar" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                        <div class="admin-user-avatar" style="display: none;">${avatarLetter}</div>
                       ` : `
                         <div class="admin-user-avatar">${avatarLetter}</div>
                       `}

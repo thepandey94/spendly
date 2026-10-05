@@ -7,9 +7,14 @@
 const SpendlyProfileView = {
   user: null,
 
-  async render() {
+  async render(targetUserId = null) {
     const container = document.getElementById('main-view-container');
     this.user = SpendlyStore.state.user;
+
+    // If viewing another user's public profile
+    if (targetUserId && (!this.user || targetUserId !== this.user.id)) {
+      return this.renderOtherUserProfile(targetUserId);
+    }
 
     container.innerHTML = `
       <div class="page-header">
@@ -28,7 +33,10 @@ const SpendlyProfileView = {
         <div class="card profile-avatar-card">
           <div class="profile-avatar-upload-wrapper" id="avatar-upload-trigger" title="Click to upload profile photo">
             ${this.user.avatar_url ? `
-              <img src="${this.user.avatar_url}" class="user-avatar-img" id="profile-avatar-preview" />
+              <img src="${this.user.avatar_url}" class="user-avatar-img" id="profile-avatar-preview" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+              <div class="user-avatar-placeholder" id="profile-avatar-placeholder" style="display: none;">
+                ${(this.user.display_name || this.user.username)[0].toUpperCase()}
+              </div>
             ` : `
               <div class="user-avatar-placeholder" id="profile-avatar-preview">
                 ${(this.user.display_name || this.user.username)[0].toUpperCase()}
@@ -38,6 +46,15 @@ const SpendlyProfileView = {
               <svg viewBox="0 0 24 24" fill="none" style="width: 24px; height: 24px;"><path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" stroke="currentColor"/><circle cx="12" cy="13" r="4" stroke="currentColor"/></svg>
             </div>
             <input type="file" id="avatar-file-input" accept="image/jpeg,image/png,image/webp,image/gif" style="display: none;" />
+          </div>
+
+          <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 4px;">
+            <button type="button" class="btn btn-secondary btn-sm" id="view-own-avatar-btn" style="font-size: 12px; padding: 4px 10px;">
+              🔍 View Full Photo
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" id="upload-own-avatar-btn" style="font-size: 12px; padding: 4px 10px;">
+              Change Photo
+            </button>
           </div>
 
           <div>
@@ -209,9 +226,30 @@ const SpendlyProfileView = {
       };
     }
 
-    // Avatar Upload Trigger
+    // Avatar Buttons & Upload Trigger
     const avatarTrigger = document.getElementById('avatar-upload-trigger');
     const avatarInput = document.getElementById('avatar-file-input');
+    const viewOwnAvatarBtn = document.getElementById('view-own-avatar-btn');
+    const uploadOwnAvatarBtn = document.getElementById('upload-own-avatar-btn');
+
+    if (viewOwnAvatarBtn) {
+      viewOwnAvatarBtn.onclick = (e) => {
+        e.stopPropagation();
+        SpendlyImageViewer.open({
+          src: this.user.avatar_url,
+          name: this.user.display_name || this.user.username,
+          fallbackInitials: (this.user.display_name || this.user.username || 'U')[0]
+        });
+      };
+    }
+
+    if (uploadOwnAvatarBtn && avatarInput) {
+      uploadOwnAvatarBtn.onclick = (e) => {
+        e.stopPropagation();
+        avatarInput.click();
+      };
+    }
+
     if (avatarTrigger && avatarInput) {
       avatarTrigger.onclick = () => avatarInput.click();
       avatarInput.onchange = async () => {
@@ -458,6 +496,127 @@ const SpendlyProfileView = {
         }
       }
     });
+  },
+
+  async renderOtherUserProfile(targetUserId) {
+    const container = document.getElementById('main-view-container');
+    container.innerHTML = `
+      <div style="margin-bottom: 20px;">
+        <button class="btn btn-secondary btn-sm" onclick="window.history.back()">
+          &larr; Back
+        </button>
+      </div>
+      <div style="text-align: center; padding: 48px 16px; color: var(--text-muted);">
+        <div class="viewer-spinner-ring" style="margin: 0 auto 16px auto; border-top-color: var(--accent-primary);"></div>
+        <span>Loading member profile...</span>
+      </div>
+    `;
+
+    try {
+      const res = await SpendlyAPI.get(`/users/${targetUserId}/profile`);
+      const profile = res.profile;
+
+      const avatarSrc = profile.avatarUrl || '';
+      const fallbackInitial = (profile.displayName || profile.username || 'U')[0].toUpperCase();
+
+      container.innerHTML = `
+        <div class="public-profile-container">
+          <div style="margin-bottom: 16px;">
+            <button class="btn btn-secondary btn-sm" id="public-profile-back-btn">
+              &larr; Back
+            </button>
+          </div>
+
+          <div class="card public-profile-card">
+            <div class="public-avatar-wrapper" id="public-avatar-trigger" title="Click to view full photo">
+              ${avatarSrc ? `
+                <img src="${avatarSrc}" class="user-avatar-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                <div class="user-avatar-placeholder" style="display: none;">
+                  ${fallbackInitial}
+                </div>
+              ` : `
+                <div class="user-avatar-placeholder">
+                  ${fallbackInitial}
+                </div>
+              `}
+              <div class="public-avatar-zoom-cue" title="View photo">
+                🔍
+              </div>
+            </div>
+
+            <h2 style="font-family: var(--font-heading); font-size: 24px; font-weight: 700; margin-bottom: 4px;">
+              ${this.escapeHtml(profile.displayName)}
+            </h2>
+            <span style="color: var(--accent-primary); font-weight: 600; font-size: 15px; margin-bottom: 12px;">
+              @${this.escapeHtml(profile.username)}
+            </span>
+
+            <p style="font-size: 14px; color: var(--text-secondary); max-width: 440px; margin: 0 auto 20px auto; line-height: 1.5;">
+              ${profile.bio ? this.escapeHtml(profile.bio) : '<span style="color: var(--text-muted); font-style: italic;">No bio added yet.</span>'}
+            </p>
+
+            <div class="public-profile-meta-grid">
+              <div class="public-meta-item">
+                <span class="public-meta-label">Member Since</span>
+                <span class="public-meta-val">${SpendlyStore.formatDateTime(profile.createdAt)}</span>
+              </div>
+              <div class="public-meta-item">
+                <span class="public-meta-label">Active Groups</span>
+                <span class="public-meta-val">${profile.groupCount} group(s)</span>
+              </div>
+              <div class="public-meta-item">
+                <span class="public-meta-label">Community Status</span>
+                <span class="public-meta-val" style="color: var(--accent-emerald);">Verified Member</span>
+              </div>
+            </div>
+
+            ${profile.sharedGroups && profile.sharedGroups.length > 0 ? `
+              <div style="width: 100%; margin-top: 24px; text-align: left;">
+                <h4 style="font-family: var(--font-heading); font-size: 14px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
+                  Shared Groups with You (${profile.sharedGroups.length})
+                </h4>
+                <div class="shared-groups-list">
+                  ${profile.sharedGroups.map(g => `
+                    <a href="#/split-it/${g.id}" class="shared-group-chip">
+                      <span>${this.escapeHtml(g.name)}</span>
+                      <span style="color: var(--accent-primary);">&rarr;</span>
+                    </a>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      `;
+
+      // Back button event
+      const backBtn = document.getElementById('public-profile-back-btn');
+      if (backBtn) {
+        backBtn.onclick = () => window.history.back();
+      }
+
+      // Avatar click opens full size viewer
+      const avatarTrigger = document.getElementById('public-avatar-trigger');
+      if (avatarTrigger) {
+        avatarTrigger.onclick = () => {
+          SpendlyImageViewer.open({
+            src: profile.avatarUrl,
+            name: profile.displayName || profile.username,
+            fallbackInitials: fallbackInitial
+          });
+        };
+      }
+    } catch (err) {
+      container.innerHTML = `
+        <div class="empty-state" style="padding: 60px 20px;">
+          <div class="empty-state-title" style="color: var(--accent-danger);">User Profile Not Found</div>
+          <p class="empty-state-text">${this.escapeHtml(err.message || 'The requested user profile does not exist or is unavailable.')}</p>
+          <button class="btn btn-secondary" onclick="window.history.back()">
+            &larr; Back to Safety
+          </button>
+        </div>
+      `;
+    }
   },
 
   escapeHtml(str) {

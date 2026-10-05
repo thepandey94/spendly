@@ -164,7 +164,8 @@ const SpendlyAdmin = {
             <div class="admin-topbar-right">
               <div class="admin-profile-pill">
                 ${user.avatar_url ? `
-                  <img src="${user.avatar_url}" class="admin-avatar-small" />
+                  <img src="${user.avatar_url}" class="admin-avatar-small" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                  <div class="admin-avatar-small" style="display: none;">${avatarLetter}</div>
                 ` : `
                   <div class="admin-avatar-small">${avatarLetter}</div>
                 `}
