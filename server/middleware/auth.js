@@ -12,11 +12,16 @@ async function authenticate(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, config.JWT_SECRET);
-    const user = await db.prepare('SELECT id, email, username, display_name, bio, avatar_url, last_username_change, created_at FROM users WHERE id = ?').get(decoded.userId);
+    const user = await db.prepare('SELECT id, email, username, display_name, bio, avatar_url, is_admin, last_username_change, created_at FROM users WHERE id = ?').get(decoded.userId);
 
     if (!user) {
       return res.status(401).json({ error: 'User account no longer exists.' });
     }
+
+    user.is_admin = Boolean(
+      user.is_admin || 
+      (config.ADMIN_EMAILS && config.ADMIN_EMAILS.includes((user.email || '').toLowerCase()))
+    );
 
     req.user = user;
     req.token = token;

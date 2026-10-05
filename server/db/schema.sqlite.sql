@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
     display_name TEXT,
     bio TEXT,
     avatar_url TEXT,
+    is_admin INTEGER DEFAULT 0,
     last_username_change INTEGER DEFAULT NULL,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
@@ -19,6 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_is_admin ON users(is_admin);
 
 -- 2. Email OTPs Table
 CREATE TABLE IF NOT EXISTS email_otps (
@@ -251,4 +253,21 @@ CREATE TABLE IF NOT EXISTS user_hidden_groups (
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_hidden_groups_user ON user_hidden_groups(user_id);
+
+-- 19. Admin Audit Logs
+CREATE TABLE IF NOT EXISTS admin_audit_logs (
+    id TEXT PRIMARY KEY,
+    admin_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    admin_username TEXT NOT NULL,
+    action TEXT NOT NULL,
+    target_type TEXT,
+    target_id TEXT,
+    details_json TEXT,
+    ip_address TEXT,
+    status TEXT NOT NULL DEFAULT 'success',
+    created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created ON admin_audit_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_action ON admin_audit_logs(action);
 

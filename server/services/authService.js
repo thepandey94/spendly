@@ -165,7 +165,11 @@ async function registerUser({ email, verificationTicket, otp, username, password
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(sessionId, userId, deviceInfo, token, now, now);
 
-  const user = await db.prepare('SELECT id, email, username, display_name, bio, avatar_url, last_username_change, created_at FROM users WHERE id = ?').get(userId);
+  const user = await db.prepare('SELECT id, email, username, display_name, bio, avatar_url, is_admin, last_username_change, created_at FROM users WHERE id = ?').get(userId);
+  user.is_admin = Boolean(
+    user.is_admin ||
+    (config.ADMIN_EMAILS && config.ADMIN_EMAILS.includes((user.email || '').toLowerCase()))
+  );
 
   return {
     user,
@@ -211,6 +215,10 @@ async function login({ identifier, password, deviceInfo = 'Web Device' }) {
   `).run(sessionId, user.id, deviceInfo, token, now, now);
 
   const { password_hash, ...safeUser } = user;
+  safeUser.is_admin = Boolean(
+    user.is_admin ||
+    (config.ADMIN_EMAILS && config.ADMIN_EMAILS.includes((user.email || '').toLowerCase()))
+  );
 
   return {
     user: safeUser,

@@ -66,6 +66,45 @@ const SpendlyRouter = {
     // Close mobile drawer if open
     SpendlyApp.closeSidebar();
 
+    // Admin Routes Guard & Shell Handling
+    if (hash.startsWith('#/admin')) {
+      if (header) header.style.display = 'none';
+      if (sidebar) sidebar.style.display = 'none';
+      if (content) {
+        content.style.marginLeft = '0';
+        content.style.marginTop = '0';
+        content.style.padding = '0';
+      }
+
+      if (hash === '#/admin/login') {
+        SpendlyAdminLoginView.render();
+        return;
+      }
+
+      // Check admin authentication
+      if (!SpendlyAdmin.getToken()) {
+        window.location.hash = '#/admin/login';
+        return;
+      }
+
+      if (hash === '#/admin' || hash === '#/admin/dashboard') {
+        SpendlyAdminDashboardView.render();
+      } else if (hash === '#/admin/users') {
+        SpendlyAdminUsersView.render();
+      } else if (hash.startsWith('#/admin/users/')) {
+        const parts = hash.split('/');
+        const userId = parts[3] || null;
+        SpendlyAdminUserDetailsView.render(userId);
+      } else if (hash === '#/admin/audit') {
+        SpendlyAdminAuditView.render();
+      } else if (hash === '#/admin/system') {
+        SpendlyAdminSystemView.render();
+      } else {
+        window.location.hash = '#/admin/dashboard';
+      }
+      return;
+    }
+
     // Match route
     if (hash === '#/own-expenses') {
       SpendlyOwnExpensesView.render();

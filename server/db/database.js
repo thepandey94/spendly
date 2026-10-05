@@ -87,6 +87,25 @@ const db = {
         const client = await pool.connect();
         try {
           await client.query(schemaSql);
+
+          // Safe, idempotent migration for existing databases
+          await client.query(`
+            ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;
+          `);
+          await client.query(`
+            CREATE INDEX IF NOT EXISTS idx_users_is_admin ON users(is_admin);
+          `);
+
+          // Ensure configured admin emails are marked as admin in DB
+          if (config.ADMIN_EMAILS && config.ADMIN_EMAILS.length > 0) {
+            for (const adminEmail of config.ADMIN_EMAILS) {
+              await client.query(
+                `UPDATE users SET is_admin = TRUE WHERE LOWER(email) = LOWER($1)`,
+                [adminEmail]
+              );
+            }
+          }
+
           console.log('💾 Database: PostgreSQL connected and schema verified');
         } finally {
           client.release();
@@ -97,6 +116,28 @@ const db = {
       if (fs.existsSync(schemaPath)) {
         const schemaSql = fs.readFileSync(schemaPath, 'utf8');
         sqliteDb.exec(schemaSql);
+
+        // Safe, idempotent migration for SQLite
+        try {
+          const columns = sqliteDb.pragma('table_info(users)');
+          const hasIsAdmin = columns.some((c) => c.name === 'is_admin');
+          if (!hasIsAdmin) {
+            sqliteDb.exec('ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0;');
+          }
+          sqliteDb.exec('CREATE INDEX IF NOT EXISTS idx_users_is_admin ON users(is_admin);');
+        } catch (mErr) {
+          // ignore
+        }
+
+        // Ensure configured admin emails are marked as admin in SQLite
+        if (config.ADMIN_EMAILS && config.ADMIN_EMAILS.length > 0) {
+          for (const adminEmail of config.ADMIN_EMAILS) {
+            try {
+              sqliteDb.prepare('UPDATE users SET is_admin = 1 WHERE email = ? COLLATE NOCASE').run(adminEmail);
+            } catch (aErr) {}
+          }
+        }
+
         console.log(`💾 Database: SQLite (WAL Mode) at ${config.DB_PATH}`);
       }
     }

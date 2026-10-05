@@ -30,5 +30,9 @@ module.exports = {
   OTP_RESEND_COOLDOWN_MS: 60 * 1000, // 60 seconds between resend requests
   OTP_RATE_LIMIT_WINDOW_MS: 15 * 60 * 1000, // 15 minutes window
   MAX_OTP_REQUESTS_PER_WINDOW: 5,
-  USERNAME_CHANGE_COOLDOWN_MS: 30 * 24 * 60 * 60 * 1000 // 30 days
+  USERNAME_CHANGE_COOLDOWN_MS: 30 * 24 * 60 * 60 * 1000, // 30 days
+
+  // Administrative Access Configuration
+  ADMIN_EMAILS: (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'tuktuk0440@gmail.com,admin@spendly.app')
+    .toLowerCase().split(',').map(s => s.trim()).filter(Boolean)
 };

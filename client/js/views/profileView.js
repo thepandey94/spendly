@@ -60,6 +60,27 @@ const SpendlyProfileView = {
 
         <!-- Right: Settings Sections -->
         <div style="display: flex; flex-direction: column; gap: 24px;">
+          ${this.user.is_admin ? `
+            <div class="card" style="border-left: 4px solid var(--accent-primary); background: linear-gradient(135deg, rgba(15, 157, 154, 0.06), transparent);">
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                <div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <h3 style="font-family: var(--font-heading); font-size: 18px; font-weight: 700; margin: 0;">
+                      Administrative Access
+                    </h3>
+                    <span class="admin-badge">Admin</span>
+                  </div>
+                  <p style="font-size: 13px; color: var(--text-secondary); margin: 6px 0 0 0;">
+                    You have administrative access to the platform overview, users, sessions, and system health.
+                  </p>
+                </div>
+                <a href="#/admin/dashboard" class="btn btn-primary" style="text-decoration: none; padding: 9px 16px; font-size: 13px;">
+                  Open Admin Console &rarr;
+                </a>
+              </div>
+            </div>
+          ` : ''}
+
           <!-- 1. Display Name & Bio -->
           <div class="card">
             <h3 style="font-family: var(--font-heading); font-size: 18px; font-weight: 700; margin-bottom: 16px;">

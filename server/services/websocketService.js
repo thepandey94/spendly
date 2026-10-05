@@ -153,9 +153,18 @@ function broadcastToAll(event, data) {
   });
 }
 
+function getStats() {
+  return {
+    status: wss ? 'operational' : 'inactive',
+    clientCount: wss ? wss.clients.size : 0,
+    userCount: userSockets.size
+  };
+}
+
 module.exports = {
   init,
   broadcastToUser,
   broadcastToGroup,
-  broadcastToAll
+  broadcastToAll,
+  getStats
 };
